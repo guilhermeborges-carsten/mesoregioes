@@ -1,0 +1,596 @@
+{% extends "base.html" %}
+
+{% block title %}Heatmap Origem-Destino - Dashboard Logístico{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h1 class="h2 text-primary">
+                <i class="bi bi-grid-3x3-gap"></i> Heatmap Origem-Destino
+            </h1>
+            <div class="d-flex gap-2">
+                <button class="btn btn-outline-primary" onclick="refreshHeatmap()">
+                    <i class="bi bi-arrow-clockwise"></i> Atualizar
+                </button>
+                <button class="btn btn-success" onclick="exportHeatmap()">
+                    <i class="bi bi-download"></i> Exportar
+                </button>
+            </div>
+        </div>
+        
+        <!-- Alert para dados não carregados -->
+        <div id="noDataAlert" class="alert alert-info d-none">
+            <i class="bi bi-info-circle"></i>
+            <strong>Nenhum dado carregado.</strong> 
+            Use o menu "Upload" para carregar um arquivo Excel com dados de embarques.
+        </div>
+    </div>
+</div>
+
+<!-- Filtros -->
+<div class="row mb-4" id="filtrosSection" style="display: none;">
+    <div class="col-12">
+        <div class="card border-0 shadow-sm">
+            <div class="card-header bg-transparent border-0">
+                <h5 class="card-title mb-0">
+                    <i class="bi bi-funnel"></i> Filtros
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-2 mb-3">
+                        <label for="dataInicio" class="form-label">Data Início</label>
+                        <input type="month" class="form-control" id="dataInicio">
+                    </div>
+                    <div class="col-md-2 mb-3">
+                        <label for="dataFim" class="form-label">Data Fim</label>
+                        <input type="month" class="form-control" id="dataFim">
+                    </div>
+                    <div class="col-md-2 mb-3">
+                        <label for="origemFilter" class="form-label">Origem</label>
+                        <select class="form-select" id="origemFilter" multiple>
+                            <!-- Preenchido via JavaScript -->
+                        </select>
+                    </div>
+                    <div class="col-md-2 mb-3">
+                        <label for="destinoFilter" class="form-label">Destino</label>
+                        <select class="form-select" id="destinoFilter" multiple>
+                            <!-- Preenchido via JavaScript -->
+                        </select>
+                    </div>
+                    <div class="col-md-2 mb-3">
+                        <label for="escalaCor" class="form-label">Escala de Cor</label>
+                        <select class="form-select" id="escalaCor">
+                            <option value="viridis">Viridis</option>
+                            <option value="plasma">Plasma</option>
+                            <option value="inferno">Inferno</option>
+                            <option value="magma">Magma</option>
+                            <option value="cividis">Cividis</option>
+                        </select>
+                    </div>
+                    <div class="col-md-2 mb-3">
+                        <label for="volumeMin" class="form-label">Volume Mín.</label>
+                        <input type="number" class="form-control" id="volumeMin" placeholder="0" min="0">
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col-12">
+                        <button class="btn btn-primary me-2" onclick="aplicarFiltros()">
+                            <i class="bi bi-check-circle"></i> Aplicar Filtros
+                        </button>
+                        <button class="btn btn-outline-secondary" onclick="resetarFiltros()">
+                            <i class="bi bi-arrow-clockwise"></i> Resetar
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Heatmap -->
+<div class="row">
+    <div class="col-12">
+        <div class="card border-0 shadow-sm">
+            <div class="card-header bg-transparent border-0">
+                <div class="d-flex justify-content-between align-items-center">
+                    <h5 class="card-title mb-0">
+                        <i class="bi bi-grid-3x3-gap"></i> Matriz de Intensidade de Fluxos
+                    </h5>
+                    <div class="d-flex align-items-center gap-3">
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" id="showValues" checked>
+                            <label class="form-check-label" for="showValues">
+                                Mostrar Valores
+                            </label>
+                        </div>
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" id="showPercentages">
+                            <label class="form-check-label" for="showPercentages">
+                                Mostrar Percentuais
+                            </label>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="card-body">
+                <div id="heatmapContainer" class="text-center">
+                    <div class="py-5">
+                        <i class="bi bi-arrow-clockwise text-muted" style="font-size: 2rem;"></i>
+                        <p class="text-muted mt-2">Carregando heatmap...</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Estatísticas do Heatmap -->
+<div class="row mt-4">
+    <div class="col-md-6">
+        <div class="card border-0 shadow-sm">
+            <div class="card-header bg-transparent border-0">
+                <h6 class="card-title mb-0">
+                    <i class="bi bi-info-circle"></i> Estatísticas
+                </h6>
+            </div>
+            <div class="card-body">
+                <div class="row text-center">
+                    <div class="col-6">
+                        <h4 class="text-primary" id="totalFluxos">-</h4>
+                        <small class="text-muted">Total de Fluxos</small>
+                    </div>
+                    <div class="col-6">
+                        <h4 class="text-success" id="fluxoMaximo">-</h4>
+                        <small class="text-muted">Fluxo Máximo</small>
+                    </div>
+                </div>
+                <div class="row text-center mt-3">
+                    <div class="col-6">
+                        <h4 class="text-info" id="fluxoMedio">-</h4>
+                        <small class="text-muted">Fluxo Médio</small>
+                    </div>
+                    <div class="col-6">
+                        <h4 class="text-warning" id="concentracao">-</h4>
+                        <small class="text-muted">Concentração (%)</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-6">
+        <div class="card border-0 shadow-sm">
+            <div class="card-header bg-transparent border-0">
+                <h6 class="card-title mb-0">
+                    <i class="bi bi-list-ol"></i> Top Fluxos
+                </h6>
+            </div>
+            <div class="card-body">
+                <div id="topFluxosList">
+                    <div class="text-center text-muted py-3">
+                        <i class="bi bi-arrow-clockwise"></i> Carregando...
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+let heatmapData = null;
+let currentFilters = {};
+
+// Inicializar página
+document.addEventListener('DOMContentLoaded', function() {
+    checkDataStatus();
+    initializeSelect2();
+    initializeEventListeners();
+});
+
+// Verificar status dos dados
+function checkDataStatus() {
+    fetch('/api/stats')
+        .then(response => response.json())
+        .then(data => {
+            if (data.error) {
+                showNoDataAlert();
+            } else {
+                hideNoDataAlert();
+                showFiltrosSection();
+                loadHeatmapData();
+            }
+        })
+        .catch(error => {
+            console.error('Erro ao verificar dados:', error);
+            showNoDataAlert();
+        });
+}
+
+// Mostrar alerta de dados não carregados
+function showNoDataAlert() {
+    document.getElementById('noDataAlert').classList.remove('d-none');
+    document.getElementById('filtrosSection').style.display = 'none';
+}
+
+// Ocultar alerta de dados não carregados
+function hideNoDataAlert() {
+    document.getElementById('noDataAlert').classList.add('d-none');
+    document.getElementById('filtrosSection').style.display = 'block';
+}
+
+// Inicializar Select2
+function initializeSelect2() {
+    $('#origemFilter').select2({
+        placeholder: 'Selecione as origens',
+        allowClear: true,
+        width: '100%'
+    });
+    
+    $('#destinoFilter').select2({
+        placeholder: 'Selecione os destinos',
+        allowClear: true,
+        width: '100%'
+    });
+}
+
+// Inicializar event listeners
+function initializeEventListeners() {
+    document.getElementById('showValues').addEventListener('change', function() {
+        if (heatmapData) {
+            renderHeatmap(heatmapData);
+        }
+    });
+    
+    document.getElementById('showPercentages').addEventListener('change', function() {
+        if (heatmapData) {
+            renderHeatmap(heatmapData);
+        }
+    });
+    
+    document.getElementById('escalaCor').addEventListener('change', function() {
+        if (heatmapData) {
+            renderHeatmap(heatmapData);
+        }
+    });
+}
+
+// Mostrar seção de filtros
+function showFiltrosSection() {
+    // Carregar mesorregiões disponíveis
+    fetch('/api/mesorregioes')
+        .then(response => response.json())
+        .then(data => {
+            if (data.error) return;
+            
+            // Preencher select de origens
+            const origemSelect = document.getElementById('origemFilter');
+            origemSelect.innerHTML = '<option value=""></option>';
+            data.origens.forEach(origem => {
+                const option = document.createElement('option');
+                option.value = origem;
+                option.textContent = origem;
+                origemSelect.appendChild(option);
+            });
+            
+            // Preencher select de destinos
+            const destinoSelect = document.getElementById('destinoFilter');
+            destinoSelect.innerHTML = '<option value=""></option>';
+            data.destinos.forEach(destino => {
+                const option = document.createElement('option');
+                option.value = destino;
+                option.textContent = destino;
+                destinoSelect.appendChild(option);
+            });
+            
+            // Atualizar Select2
+            $('#origemFilter').trigger('change');
+            $('#destinoFilter').trigger('change');
+        });
+}
+
+// Carregar dados do heatmap
+function loadHeatmapData() {
+    const params = new URLSearchParams(currentFilters);
+    
+    fetch(`/api/heatmap_data?${params.toString()}`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.error) {
+                console.error('Erro ao carregar dados do heatmap:', data.error);
+                return;
+            }
+            
+            heatmapData = data;
+            renderHeatmap(data);
+            updateStatistics(data);
+            updateTopFluxos(data);
+        })
+        .catch(error => {
+            console.error('Erro ao carregar dados do heatmap:', error);
+        });
+}
+
+// Renderizar heatmap
+function renderHeatmap(data) {
+    const container = document.getElementById('heatmapContainer');
+    const showValues = document.getElementById('showValues').checked;
+    const showPercentages = document.getElementById('showPercentages').checked;
+    const escalaCor = document.getElementById('escalaCor').value;
+    
+    // Calcular valores para normalização
+    const valores = data.valores.flat();
+    const maxValor = Math.max(...valores);
+    const totalValor = valores.reduce((sum, val) => sum + val, 0);
+    
+    // Criar tabela HTML
+    let html = '<div class="table-responsive"><table class="table table-sm table-bordered heatmap-table">';
+    
+    // Cabeçalho com destinos
+    html += '<thead><tr><th class="text-center align-middle text-dark">Origem →<br>Destino ↓</th>';
+    data.destinos.forEach(destino => {
+        html += `<th class="text-center align-middle text-dark">${destino}</th>`;
+    });
+    html += '</tr></thead>';
+    
+    // Corpo da tabela
+    html += '<tbody>';
+    data.origens.forEach((origem, i) => {
+        html += '<tr>';
+        html += `<td class="text-start fw-bold">${origem}</td>`;
+        
+        data.destinos.forEach((destino, j) => {
+            const valor = data.valores[i][j];
+            const percentual = valor > 0 ? ((valor / totalValor) * 100).toFixed(1) : 0;
+            
+            // Calcular cor baseada na escala selecionada
+            const intensidade = valor > 0 ? valor / maxValor : 0;
+            const cor = getColor(intensidade, escalaCor);
+            
+            let cellContent = '';
+            if (showValues && showPercentages) {
+                cellContent = `${valor.toLocaleString('pt-BR')}<br><small>${percentual}%</small>`;
+            } else if (showValues) {
+                cellContent = valor.toLocaleString('pt-BR');
+            } else if (showPercentages) {
+                cellContent = `${percentual}%`;
+            }
+            
+            const fontWeight = valor > 0 ? '700' : '600'; // Fonte mais grossa para melhor visibilidade
+            html += `<td class="text-center align-middle" style="background-color: ${cor}; min-width: 80px;">${cellContent}</td>`;
+        });
+        
+        html += '</tr>';
+    });
+    html += '</tbody></table></div>';
+    
+    container.innerHTML = html;
+}
+
+// Obter cor baseada na escala selecionada
+function getColor(intensidade, escala) {
+    if (intensidade === 0) return '#f8f9fa';
+    
+    const alpha = Math.max(0.1, intensidade);
+    
+    switch(escala) {
+        case 'viridis':
+            return `rgba(68, 1, 84, ${alpha})`;
+        case 'plasma':
+            return `rgba(13, 8, 135, ${alpha})`;
+        case 'inferno':
+            return `rgba(0, 0, 4, ${alpha})`;
+        case 'magma':
+            return `rgba(0, 0, 4, ${alpha})`;
+        case 'cividis':
+            return `rgba(0, 32, 76, ${alpha})`;
+        default:
+            return `rgba(68, 1, 84, ${alpha})`;
+    }
+}
+
+// Obter cor do texto baseada na cor de fundo
+function getTextColor(bgColor) {
+    // Sempre usar preto para melhor visibilidade
+    return '#000000';
+}
+
+// Atualizar estatísticas
+function updateStatistics(data) {
+    const valores = data.valores.flat().filter(v => v > 0);
+    const totalFluxos = valores.length;
+    const fluxoMaximo = Math.max(...valores);
+    const fluxoMedio = Math.round(valores.reduce((sum, val) => sum + val, 0) / valores.length);
+    
+    // Calcular concentração (top 10 fluxos / total)
+    const valoresOrdenados = [...valores].sort((a, b) => b - a);
+    const top10Total = valoresOrdenados.slice(0, 10).reduce((sum, val) => sum + val, 0);
+    const totalValor = valores.reduce((sum, val) => sum + val, 0);
+    const concentracao = totalValor > 0 ? Math.round((top10Total / totalValor) * 100) : 0;
+    
+    document.getElementById('totalFluxos').textContent = totalFluxos.toLocaleString('pt-BR');
+    document.getElementById('fluxoMaximo').textContent = fluxoMaximo.toLocaleString('pt-BR');
+    document.getElementById('fluxoMedio').textContent = fluxoMedio.toLocaleString('pt-BR');
+    document.getElementById('concentracao').textContent = `${concentracao}%`;
+}
+
+// Atualizar top fluxos
+function updateTopFluxos(data) {
+    const fluxos = [];
+    
+    data.origens.forEach((origem, i) => {
+        data.destinos.forEach((destino, j) => {
+            const valor = data.valores[i][j];
+            if (valor > 0) {
+                fluxos.push({
+                    origem: origem,
+                    destino: destino,
+                    valor: valor
+                });
+            }
+        });
+    });
+    
+    // Ordenar por valor e pegar top 10
+    const topFluxos = fluxos.sort((a, b) => b.valor - a.valor).slice(0, 10);
+    
+    const html = topFluxos.map((fluxo, index) => `
+        <div class="d-flex justify-content-between align-items-center py-2 ${index < 3 ? 'fw-bold' : ''}">
+            <div class="d-flex align-items-center">
+                <span class="badge bg-primary me-2">${index + 1}</span>
+                <div>
+                    <div class="small text-muted">${fluxo.origem}</div>
+                    <div class="small">→ ${fluxo.destino}</div>
+                </div>
+            </div>
+            <div class="text-end">
+                <div class="fw-bold">${fluxo.valor.toLocaleString('pt-BR')}</div>
+            </div>
+        </div>
+    `).join('');
+    
+    document.getElementById('topFluxosList').innerHTML = html;
+}
+
+// Aplicar filtros
+function aplicarFiltros() {
+    currentFilters = {
+        data_inicio: document.getElementById('dataInicio').value,
+        data_fim: document.getElementById('dataFim').value,
+        origens: $('#origemFilter').val(),
+        destinos: $('#destinoFilter').val(),
+        volume_min: document.getElementById('volumeMin').value
+    };
+    
+    loadHeatmapData();
+    showToast('Filtros aplicados com sucesso!', 'success');
+}
+
+// Resetar filtros
+function resetarFiltros() {
+    document.getElementById('dataInicio').value = '';
+    document.getElementById('dataFim').value = '';
+    $('#origemFilter').val(null).trigger('change');
+    $('#destinoFilter').val(null).trigger('change');
+    document.getElementById('volumeMin').value = '';
+    
+    currentFilters = {};
+    loadHeatmapData();
+    showToast('Filtros resetados!', 'info');
+}
+
+// Atualizar heatmap
+function refreshHeatmap() {
+    loadHeatmapData();
+    showToast('Heatmap atualizado!', 'success');
+}
+
+// Exportar heatmap
+function exportHeatmap() {
+    if (!heatmapData) {
+        showToast('Nenhum dado disponível para exportar', 'warning');
+        return;
+    }
+    
+    const params = new URLSearchParams(currentFilters);
+    const excelUrl = `/api/exportar_excel?${params.toString()}`;
+    const link = document.createElement('a');
+    link.href = excelUrl;
+    link.download = `heatmap_embarques_${new Date().toISOString().slice(0, 10)}.xlsx`;
+    link.click();
+    
+    showToast('Exportação iniciada!', 'success');
+}
+
+// Mostrar toast de notificação
+function showToast(message, type = 'info') {
+    const toastContainer = document.getElementById('toastContainer') || createToastContainer();
+    
+    const toast = document.createElement('div');
+    toast.className = `toast align-items-center text-white bg-${type} border-0`;
+    toast.setAttribute('role', 'alert');
+    toast.innerHTML = `
+        <div class="d-flex">
+            <div class="toast-body">${message}</div>
+            <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
+        </div>
+    `;
+    
+    toastContainer.appendChild(toast);
+    
+    const bsToast = new bootstrap.Toast(toast);
+    bsToast.show();
+    
+    // Remover toast após ser fechado
+    toast.addEventListener('hidden.bs.toast', () => {
+        toast.remove();
+    });
+}
+
+// Criar container de toasts
+function createToastContainer() {
+    const container = document.createElement('div');
+    container.id = 'toastContainer';
+    container.className = 'toast-container position-fixed top-0 end-0 p-3';
+    container.style.zIndex = '9999';
+    document.body.appendChild(container);
+    return container;
+}
+</script>
+
+<style>
+.heatmap-table {
+    font-size: 0.875rem;
+}
+
+.heatmap-table th,
+.heatmap-table td {
+    border: 1px solid #dee2e6;
+    padding: 0.5rem;
+    vertical-align: middle;
+}
+
+.heatmap-table th {
+    background-color: #f8f9fa;
+    font-weight: 600;
+    color: #000000 !important;
+}
+
+.heatmap-table td {
+    transition: all 0.2s ease;
+    font-weight: 500;
+}
+
+/* Melhorar visibilidade dos números */
+.heatmap-table td[style*="background-color: #f8f9fa"] {
+    color: #000000 !important;
+    font-weight: 600;
+}
+
+/* Garantir que números em células coloridas tenham contraste adequado */
+.heatmap-table td {
+    text-shadow: 0 0 1px rgba(0,0,0,0.1);
+}
+
+/* Forçar cor preta para todos os números */
+.heatmap-table td {
+    color: #000000 !important;
+    font-weight: 700 !important;
+}
+
+/* Aplicar sombra branca forte para contraste em fundos escuros */
+.heatmap-table td[style*="background-color: rgba"] {
+    text-shadow: 0 0 3px rgba(255,255,255,1), 0 0 6px rgba(255,255,255,1) !important;
+}
+
+.heatmap-table td:hover {
+    transform: scale(1.05);
+    z-index: 10;
+    position: relative;
+    box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+}
+</style>
+{% endblock %}

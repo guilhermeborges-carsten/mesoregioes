@@ -1,0 +1,653 @@
+{% extends "base.html" %}
+
+{% block title %}Tabela Detalhada - Dashboard Logístico{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h1 class="h2 text-primary">
+                <i class="bi bi-table"></i> Tabela Detalhada de Relações O-D
+            </h1>
+            <div class="d-flex gap-2">
+                <button class="btn btn-outline-primary" onclick="refreshTable()">
+                    <i class="bi bi-arrow-clockwise"></i> Atualizar
+                </button>
+                <button class="btn btn-success" onclick="exportTableExcel()">
+                    <i class="bi bi-file-earmark-excel"></i> Excel
+                </button>
+                <button class="btn btn-info" onclick="exportTableCSV()">
+                    <i class="bi bi-file-earmark-text"></i> CSV
+                </button>
+            </div>
+        </div>
+        
+        <!-- Alert para dados não carregados -->
+        <div id="noDataAlert" class="alert alert-info d-none">
+            <i class="bi bi-info-circle"></i>
+            <strong>Nenhum dado carregado.</strong> 
+            Use o menu "Upload" para carregar um arquivo Excel com dados de embarques.
+        </div>
+    </div>
+</div>
+
+<!-- Filtros -->
+<div class="row mb-4" id="filtrosSection" style="display: none;">
+    <div class="col-12">
+        <div class="card border-0 shadow-sm">
+            <div class="card-header bg-transparent border-0">
+                <h5 class="card-title mb-0">
+                    <i class="bi bi-funnel"></i> Filtros da Tabela
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-2 mb-3">
+                        <label for="dataInicio" class="form-label">Data Início</label>
+                        <input type="month" class="form-control" id="dataInicio">
+                    </div>
+                    <div class="col-md-2 mb-3">
+                        <label for="dataFim" class="form-label">Data Fim</label>
+                        <input type="month" class="form-control" id="dataFim">
+                    </div>
+                    <div class="col-md-2 mb-3">
+                        <label for="origemFilter" class="form-label">Origem</label>
+                        <select class="form-select" id="origemFilter" multiple>
+                            <!-- Preenchido via JavaScript -->
+                        </select>
+                    </div>
+                    <div class="col-md-2 mb-3">
+                        <label for="destinoFilter" class="form-label">Destino</label>
+                        <select class="form-select" id="destinoFilter" multiple>
+                            <!-- Preenchido via JavaScript -->
+                        </select>
+                    </div>
+                    <div class="col-md-2 mb-3">
+                        <label for="limitRows" class="form-label">Limite de Linhas</label>
+                        <select class="form-select" id="limitRows">
+                            <option value="10">10 linhas</option>
+                            <option value="20" selected>20 linhas</option>
+                            <option value="50">50 linhas</option>
+                            <option value="100">100 linhas</option>
+                            <option value="200">200 linhas</option>
+                        </select>
+                    </div>
+                    <div class="col-md-2 mb-3">
+                        <label for="volumeMin" class="form-label">Volume Mín.</label>
+                        <input type="number" class="form-control" id="volumeMin" placeholder="0" min="0">
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col-12">
+                        <button class="btn btn-primary me-2" onclick="aplicarFiltros()">
+                            <i class="bi bi-check-circle"></i> Aplicar Filtros
+                        </button>
+                        <button class="btn btn-outline-secondary" onclick="resetarFiltros()">
+                            <i class="bi bi-arrow-clockwise"></i> Resetar
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Estatísticas da Tabela -->
+<div class="row mb-4" id="statsSection" style="display: none;">
+    <div class="col-12">
+        <div class="card border-0 shadow-sm">
+            <div class="card-body">
+                <div class="row text-center">
+                    <div class="col-md-3">
+                        <h4 class="text-primary" id="totalRegistros">-</h4>
+                        <small class="text-muted">Total de Registros</small>
+                    </div>
+                    <div class="col-md-3">
+                        <h4 class="text-success" id="volumeTotalTabela">-</h4>
+                        <small class="text-muted">Volume Total</small>
+                    </div>
+                    <div class="col-md-3">
+                        <h4 class="text-info" id="origensUnicas">-</h4>
+                        <small class="text-muted">Origens Únicas</small>
+                    </div>
+                    <div class="col-md-3">
+                        <h4 class="text-warning" id="destinosUnicos">-</h4>
+                        <small class="text-muted">Destinos Únicos</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Tabela -->
+<div class="row">
+    <div class="col-12">
+        <div class="card border-0 shadow-sm">
+            <div class="card-header bg-transparent border-0">
+                <div class="d-flex justify-content-between align-items-center">
+                    <h5 class="card-title mb-0">
+                        <i class="bi bi-table"></i> Dados de Embarques
+                    </h5>
+                    <div class="d-flex align-items-center gap-3">
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" id="showPercentages" checked>
+                            <label class="form-check-label" for="showPercentages">
+                                Mostrar Percentuais
+                            </label>
+                        </div>
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" id="showTotals" checked>
+                            <label class="form-check-label" for="showTotals">
+                                Mostrar Totais
+                            </label>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-striped table-hover" id="dataTable">
+                        <thead class="table-dark">
+                            <tr>
+                                <th scope="col" class="text-center">#</th>
+                                <th scope="col">Mesorregião Origem</th>
+                                <th scope="col">Mesorregião Destino</th>
+                                <th scope="col">Mês</th>
+                                <th scope="col" class="text-end">Embarques</th>
+                                <th scope="col" class="text-end">% do Total</th>
+                                <th scope="col" class="text-center">Ações</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tableBody">
+                            <tr>
+                                <td colspan="7" class="text-center text-muted py-5">
+                                    <i class="bi bi-arrow-clockwise" style="font-size: 2rem;"></i>
+                                    <p class="mt-2">Carregando dados...</p>
+                                </td>
+                            </tr>
+                        </tbody>
+                        <tfoot id="tableFooter" style="display: none;">
+                            <tr class="table-info fw-bold">
+                                <td colspan="4" class="text-end">TOTAL:</td>
+                                <td class="text-end" id="totalEmbarques">-</td>
+                                <td class="text-end">100.0%</td>
+                                <td></td>
+                            </tr>
+                        </tfoot>
+                    </table>
+                </div>
+                
+                <!-- Paginação -->
+                <div class="d-flex justify-content-between align-items-center mt-3">
+                    <div class="d-flex align-items-center gap-2">
+                        <span class="text-muted">Mostrando</span>
+                        <select class="form-select form-select-sm" id="pageSize" style="width: auto;">
+                            <option value="10">10</option>
+                            <option value="20" selected>20</option>
+                            <option value="50">50</option>
+                            <option value="100">100</option>
+                        </select>
+                        <span class="text-muted">registros por página</span>
+                    </div>
+                    <div class="d-flex align-items-center gap-2">
+                        <button class="btn btn-sm btn-outline-primary" id="prevPage" onclick="previousPage()">
+                            <i class="bi bi-chevron-left"></i> Anterior
+                        </button>
+                        <span class="text-muted" id="pageInfo">Página 1 de 1</span>
+                        <button class="btn btn-sm btn-outline-primary" id="nextPage" onclick="nextPage()">
+                            Próxima <i class="bi bi-chevron-right"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal de Detalhes -->
+<div class="modal fade" id="detailsModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Detalhes do Registro</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="modalBody">
+                <!-- Preenchido via JavaScript -->
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+let tableData = [];
+let currentFilters = {};
+let currentPage = 1;
+let pageSize = 20;
+let totalRecords = 0;
+
+// Inicializar página
+document.addEventListener('DOMContentLoaded', function() {
+    checkDataStatus();
+    initializeSelect2();
+    initializeEventListeners();
+});
+
+// Verificar status dos dados
+function checkDataStatus() {
+    fetch('/api/stats')
+        .then(response => response.json())
+        .then(data => {
+            if (data.error) {
+                showNoDataAlert();
+            } else {
+                hideNoDataAlert();
+                showFiltrosSection();
+                showStatsSection();
+                loadTableData();
+            }
+        })
+        .catch(error => {
+            console.error('Erro ao verificar dados:', error);
+            showNoDataAlert();
+        });
+}
+
+// Mostrar alerta de dados não carregados
+function showNoDataAlert() {
+    document.getElementById('noDataAlert').classList.remove('d-none');
+    document.getElementById('filtrosSection').style.display = 'none';
+    document.getElementById('statsSection').style.display = 'none';
+}
+
+// Ocultar alerta de dados não carregados
+function hideNoDataAlert() {
+    document.getElementById('noDataAlert').classList.add('d-none');
+}
+
+// Mostrar seção de filtros
+function showFiltrosSection() {
+    document.getElementById('filtrosSection').style.display = 'block';
+}
+
+// Mostrar seção de estatísticas
+function showStatsSection() {
+    document.getElementById('statsSection').style.display = 'block';
+}
+
+// Inicializar Select2
+function initializeSelect2() {
+    $('#origemFilter').select2({
+        placeholder: 'Selecione as origens',
+        allowClear: true,
+        width: '100%'
+    });
+    
+    $('#destinoFilter').select2({
+        placeholder: 'Selecione os destinos',
+        allowClear: true,
+        width: '100%'
+    });
+}
+
+// Inicializar event listeners
+function initializeEventListeners() {
+    document.getElementById('pageSize').addEventListener('change', function() {
+        pageSize = parseInt(this.value);
+        currentPage = 1;
+        loadTableData();
+    });
+    
+    document.getElementById('showPercentages').addEventListener('change', function() {
+        renderTable();
+    });
+    
+    document.getElementById('showTotals').addEventListener('change', function() {
+        toggleTableFooter();
+    });
+}
+
+// Mostrar seção de filtros
+function showFiltrosSection() {
+    // Carregar mesorregiões disponíveis
+    fetch('/api/mesorregioes')
+        .then(response => response.json())
+        .then(data => {
+            if (data.error) return;
+            
+            // Preencher select de origens
+            const origemSelect = document.getElementById('origemFilter');
+            origemSelect.innerHTML = '<option value=""></option>';
+            data.origens.forEach(origem => {
+                const option = document.createElement('option');
+                option.value = origem;
+                option.textContent = origem;
+                origemSelect.appendChild(option);
+            });
+            
+            // Preencher select de destinos
+            const destinoSelect = document.getElementById('destinoFilter');
+            destinoSelect.innerHTML = '<option value=""></option>';
+            data.destinos.forEach(destino => {
+                const option = document.createElement('option');
+                option.value = destino;
+                option.textContent = destino;
+                destinoSelect.appendChild(option);
+            });
+            
+            // Atualizar Select2
+            $('#origemFilter').trigger('change');
+            $('#destinoFilter').trigger('change');
+        });
+}
+
+// Carregar dados da tabela
+function loadTableData() {
+    const params = new URLSearchParams({
+        ...currentFilters,
+        limit: pageSize
+    });
+    
+    fetch(`/api/tabela_dados?${params.toString()}`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.error) {
+                console.error('Erro ao carregar dados da tabela:', data.error);
+                return;
+            }
+            
+            tableData = data.dados;
+            totalRecords = data.total;
+            currentPage = 1;
+            
+            renderTable();
+            updateStatistics();
+            updatePagination();
+        })
+        .catch(error => {
+            console.error('Erro ao carregar dados da tabela:', error);
+        });
+}
+
+// Renderizar tabela
+function renderTable() {
+    const tbody = document.getElementById('tableBody');
+    const showPercentages = document.getElementById('showPercentages').checked;
+    
+    if (!tableData || tableData.length === 0) {
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="7" class="text-center text-muted py-5">
+                    <i class="bi bi-inbox" style="font-size: 2rem;"></i>
+                    <p class="mt-2">Nenhum dado encontrado com os filtros aplicados</p>
+                </td>
+            </tr>
+        `;
+        return;
+    }
+    
+    // Calcular total para percentuais
+    const totalEmbarques = tableData.reduce((sum, row) => sum + row.embarques, 0);
+    
+    const html = tableData.map((row, index) => {
+        const percentual = totalEmbarques > 0 ? ((row.embarques / totalEmbarques) * 100).toFixed(1) : 0;
+        
+        return `
+            <tr>
+                <td class="text-center">${index + 1}</td>
+                <td>
+                    <span class="badge bg-primary me-2">O</span>
+                    ${row.origem}
+                </td>
+                <td>
+                    <span class="badge bg-success me-2">D</span>
+                    ${row.destino}
+                </td>
+                <td>${row.mes}</td>
+                <td class="text-end fw-bold">${row.embarques.toLocaleString('pt-BR')}</td>
+                <td class="text-end text-muted">${showPercentages ? percentual + '%' : '-'}</td>
+                <td class="text-center">
+                    <button class="btn btn-sm btn-outline-primary" onclick="showDetails(${index})">
+                        <i class="bi bi-eye"></i>
+                    </button>
+                </td>
+            </tr>
+        `;
+    }).join('');
+    
+    tbody.innerHTML = html;
+    
+    // Atualizar total no footer
+    if (document.getElementById('showTotals').checked) {
+        document.getElementById('totalEmbarques').textContent = totalEmbarques.toLocaleString('pt-BR');
+    }
+}
+
+// Atualizar estatísticas
+function updateStatistics() {
+    if (!tableData || tableData.length === 0) return;
+    
+    const totalRegistros = tableData.length;
+    const volumeTotal = tableData.reduce((sum, row) => sum + row.embarques, 0);
+    const origensUnicas = new Set(tableData.map(row => row.origem)).size;
+    const destinosUnicos = new Set(tableData.map(row => row.destino)).size;
+    
+    document.getElementById('totalRegistros').textContent = totalRegistros.toLocaleString('pt-BR');
+    document.getElementById('volumeTotalTabela').textContent = volumeTotal.toLocaleString('pt-BR');
+    document.getElementById('origensUnicas').textContent = origensUnicas;
+    document.getElementById('destinosUnicos').textContent = destinosUnicos;
+}
+
+// Atualizar paginação
+function updatePagination() {
+    const totalPages = Math.ceil(totalRecords / pageSize);
+    const pageInfo = document.getElementById('pageInfo');
+    const prevBtn = document.getElementById('prevPage');
+    const nextBtn = document.getElementById('nextPage');
+    
+    pageInfo.textContent = `Página ${currentPage} de ${totalPages}`;
+    
+    prevBtn.disabled = currentPage === 1;
+    nextBtn.disabled = currentPage === totalPages;
+}
+
+// Página anterior
+function previousPage() {
+    if (currentPage > 1) {
+        currentPage--;
+        loadTableData();
+    }
+}
+
+// Próxima página
+function nextPage() {
+    const totalPages = Math.ceil(totalRecords / pageSize);
+    if (currentPage < totalPages) {
+        currentPage++;
+        loadTableData();
+    }
+}
+
+// Toggle footer da tabela
+function toggleTableFooter() {
+    const footer = document.getElementById('tableFooter');
+    footer.style.display = document.getElementById('showTotals').checked ? 'table-row-group' : 'none';
+}
+
+// Mostrar detalhes do registro
+function showDetails(index) {
+    const row = tableData[index];
+    const modalBody = document.getElementById('modalBody');
+    
+    modalBody.innerHTML = `
+        <div class="row">
+            <div class="col-md-6">
+                <h6 class="text-primary">Informações da Origem</h6>
+                <p><strong>Mesorregião:</strong> ${row.origem}</p>
+                <p><strong>Tipo:</strong> Origem</p>
+            </div>
+            <div class="col-md-6">
+                <h6 class="text-success">Informações do Destino</h6>
+                <p><strong>Mesorregião:</strong> ${row.destino}</p>
+                <p><strong>Tipo:</strong> Destino</p>
+            </div>
+        </div>
+        <hr>
+        <div class="row">
+            <div class="col-md-6">
+                <h6 class="text-info">Informações do Embarque</h6>
+                <p><strong>Mês:</strong> ${row.mes}</p>
+                <p><strong>Volume:</strong> ${row.embarques.toLocaleString('pt-BR')} embarques</p>
+            </div>
+            <div class="col-md-6">
+                <h6 class="text-warning">Análise</h6>
+                <p><strong>Relação O-D:</strong> ${row.origem} → ${row.destino}</p>
+                <p><strong>Distância:</strong> <em>Calculada via mapa</em></p>
+            </div>
+        </div>
+    `;
+    
+    const modal = new bootstrap.Modal(document.getElementById('detailsModal'));
+    modal.show();
+}
+
+// Aplicar filtros
+function aplicarFiltros() {
+    currentFilters = {
+        data_inicio: document.getElementById('dataInicio').value,
+        data_fim: document.getElementById('dataFim').value,
+        origens: $('#origemFilter').val(),
+        destinos: $('#destinoFilter').val(),
+        volume_min: document.getElementById('volumeMin').value
+    };
+    
+    loadTableData();
+    showToast('Filtros aplicados com sucesso!', 'success');
+}
+
+// Resetar filtros
+function resetarFiltros() {
+    document.getElementById('dataInicio').value = '';
+    document.getElementById('dataFim').value = '';
+    $('#origemFilter').val(null).trigger('change');
+    $('#destinoFilter').val(null).trigger('change');
+    document.getElementById('volumeMin').value = '';
+    document.getElementById('limitRows').value = '20';
+    
+    currentFilters = {};
+    pageSize = 20;
+    currentPage = 1;
+    
+    loadTableData();
+    showToast('Filtros resetados!', 'info');
+}
+
+// Atualizar tabela
+function refreshTable() {
+    loadTableData();
+    showToast('Tabela atualizada!', 'success');
+}
+
+// Exportar tabela para Excel
+function exportTableExcel() {
+    if (!tableData || tableData.length === 0) {
+        showToast('Nenhum dado disponível para exportar', 'warning');
+        return;
+    }
+    
+    const params = new URLSearchParams(currentFilters);
+    const excelUrl = `/api/exportar_excel?${params.toString()}`;
+    const link = document.createElement('a');
+    link.href = excelUrl;
+    link.download = `tabela_embarques_${new Date().toISOString().slice(0, 10)}.xlsx`;
+    link.click();
+    
+    showToast('Exportação Excel iniciada!', 'success');
+}
+
+// Exportar tabela para CSV
+function exportTableCSV() {
+    if (!tableData || tableData.length === 0) {
+        showToast('Nenhum dado disponível para exportar', 'warning');
+        return;
+    }
+    
+    const params = new URLSearchParams(currentFilters);
+    const csvUrl = `/api/exportar_csv?${params.toString()}`;
+    const link = document.createElement('a');
+    link.href = csvUrl;
+    link.download = `tabela_embarques_${new Date().toISOString().slice(0, 10)}.csv`;
+    link.click();
+    
+    showToast('Exportação CSV iniciada!', 'success');
+}
+
+// Mostrar toast de notificação
+function showToast(message, type = 'info') {
+    const toastContainer = document.getElementById('toastContainer') || createToastContainer();
+    
+    const toast = document.createElement('div');
+    toast.className = `toast align-items-center text-white bg-${type} border-0`;
+    toast.setAttribute('role', 'alert');
+    toast.innerHTML = `
+        <div class="d-flex">
+            <div class="toast-body">${message}</div>
+            <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
+        </div>
+    `;
+    
+    toastContainer.appendChild(toast);
+    
+    const bsToast = new bootstrap.Toast(toast);
+    bsToast.show();
+    
+    // Remover toast após ser fechado
+    toast.addEventListener('hidden.bs.toast', () => {
+        toast.remove();
+    });
+}
+
+// Criar container de toasts
+function createToastContainer() {
+    const container = document.createElement('div');
+    container.id = 'toastContainer';
+    container.className = 'toast-container position-fixed top-0 end-0 p-3';
+    container.style.zIndex = '9999';
+    document.body.appendChild(container);
+    return container;
+}
+</script>
+
+<style>
+#dataTable th {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    background-color: #212529;
+    color: white;
+}
+
+#dataTable tbody tr:hover {
+    background-color: rgba(0, 123, 255, 0.1);
+}
+
+.badge {
+    font-size: 0.75rem;
+}
+
+.table-responsive {
+    max-height: 600px;
+    overflow-y: auto;
+}
+
+#pageSize {
+    min-width: 80px;
+}
+</style>
+{% endblock %}

@@ -1,0 +1,545 @@
+{% extends "base.html" %}
+
+{% block title %}Balanço de Embarques - Dashboard Logístico{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h1 class="h2 text-primary">
+                <i class="bi bi-calculator"></i> Balanço de Embarques por Mesorregião
+            </h1>
+            <div class="d-flex gap-2">
+                <button class="btn btn-outline-primary" onclick="refreshBalanco()">
+                    <i class="bi bi-arrow-clockwise"></i> Atualizar
+                </button>
+                <button class="btn btn-success" onclick="exportarBalanco()">
+                    <i class="bi bi-download"></i> Exportar
+                </button>
+            </div>
+        </div>
+        
+        <!-- Alert para dados não carregados -->
+        <div id="noDataAlert" class="alert alert-info d-none">
+            <i class="bi bi-info-circle"></i>
+            <strong>Nenhum dado carregado.</strong> 
+            Use o menu "Upload" para carregar um arquivo Excel com dados de embarques.
+        </div>
+    </div>
+</div>
+
+<!-- Filtros -->
+<div class="row mb-4" id="filtrosSection" style="display: none;">
+    <div class="col-12">
+        <div class="card border-0 shadow-sm">
+            <div class="card-header bg-transparent border-0">
+                <h5 class="card-title mb-0">
+                    <i class="bi bi-funnel"></i> Filtros do Balanço
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-2 mb-3">
+                        <label for="dataInicio" class="form-label">Data Início</label>
+                        <input type="month" class="form-control" id="dataInicio">
+                    </div>
+                    <div class="col-md-2 mb-3">
+                        <label for="dataFim" class="form-label">Data Fim</label>
+                        <input type="month" class="form-control" id="dataFim">
+                    </div>
+                    <div class="col-md-2 mb-3">
+                        <label for="origemFilter" class="form-label">Origem</label>
+                        <select class="form-select" id="origemFilter" multiple>
+                            <!-- Preenchido via JavaScript -->
+                        </select>
+                    </div>
+                    <div class="col-md-2 mb-3">
+                        <label for="destinoFilter" class="form-label">Destino</label>
+                        <select class="form-select" id="destinoFilter" multiple>
+                            <!-- Preenchido via JavaScript -->
+                        </select>
+                    </div>
+                    <div class="col-md-2 mb-3">
+                        <label for="limit" class="form-label">Limite de Registros</label>
+                        <select class="form-select" id="limit">
+                            <option value="20">Top 20</option>
+                            <option value="50" selected>Top 50</option>
+                            <option value="100">Top 100</option>
+                            <option value="0">Todos</option>
+                        </select>
+                    </div>
+                    <div class="col-md-2 mb-3">
+                        <label for="classificacaoFilter" class="form-label">Classificação</label>
+                        <select class="form-select" id="classificacaoFilter">
+                            <option value="">Todas</option>
+                            <option value="produtora">Apenas Produtoras</option>
+                            <option value="consumidora">Apenas Consumidoras</option>
+                            <option value="equilibrada">Apenas Equilibradas</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col-12">
+                        <button class="btn btn-primary me-2" onclick="aplicarFiltros()">
+                            <i class="bi bi-check-circle"></i> Aplicar Filtros
+                        </button>
+                        <button class="btn btn-outline-secondary" onclick="resetarFiltros()">
+                            <i class="bi bi-arrow-clockwise"></i> Resetar
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Resumo Estatístico -->
+<div class="row mb-4" id="resumoSection" style="display: none;">
+    <div class="col-12">
+        <div class="card border-0 shadow-sm">
+            <div class="card-header bg-transparent border-0">
+                <h6 class="card-title mb-0">
+                    <i class="bi bi-pie-chart"></i> Resumo do Balanço
+                </h6>
+            </div>
+            <div class="card-body">
+                <div class="row text-center">
+                    <div class="col-md-3">
+                        <h4 class="text-primary" id="totalMesorregioes">-</h4>
+                        <small class="text-muted">Total de Mesorregiões</small>
+                    </div>
+                    <div class="col-md-3">
+                        <h4 class="text-success" id="totalProdutoras">-</h4>
+                        <small class="text-muted">Regiões Produtoras</small>
+                    </div>
+                    <div class="col-md-3">
+                        <h4 class="text-warning" id="totalConsumidoras">-</h4>
+                        <small class="text-muted">Regiões Consumidoras</small>
+                    </div>
+                    <div class="col-md-3">
+                        <h4 class="text-info" id="totalEquilibradas">-</h4>
+                        <small class="text-muted">Regiões Equilibradas</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Tabela de Balanço -->
+<div class="row">
+    <div class="col-12">
+        <div class="card border-0 shadow-sm">
+            <div class="card-header bg-transparent border-0">
+                <h6 class="card-title mb-0">
+                    <i class="bi bi-table"></i> Tabela de Balanço por Mesorregião
+                </h6>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-hover" id="balancoTable">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Mesorregião</th>
+                                <th class="text-center text-white">Embarques Origem</th>
+                                <th class="text-center text-white">Embarques Destino</th>
+                                <th class="text-center text-white">Discrepância</th>
+                                <th class="text-center text-white">Total Movimentado</th>
+                                <th class="text-center text-white">% Origem</th>
+                                <th class="text-center text-white">% Destino</th>
+                                <th class="text-center text-white">Classificação</th>
+                            </tr>
+                        </thead>
+                        <tbody id="balancoTableBody">
+                            <tr>
+                                <td colspan="8" class="text-center text-muted py-4">
+                                    <i class="bi bi-arrow-clockwise"></i> Carregando dados...
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Gráfico de Saldo -->
+<div class="row mt-4">
+    <div class="col-12">
+        <div class="card border-0 shadow-sm">
+            <div class="card-header bg-transparent border-0">
+                                 <h6 class="card-title mb-0">
+                     <i class="bi bi-bar-chart"></i> Gráfico de Discrepância por Mesorregião
+                 </h6>
+            </div>
+            <div class="card-body">
+                <canvas id="saldoChart" height="100"></canvas>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+let currentFilters = {};
+let balancoData = null;
+let saldoChart = null;
+
+// Inicializar página
+document.addEventListener('DOMContentLoaded', function() {
+    checkDataStatus();
+    initializeSelect2();
+    initializeEventListeners();
+});
+
+// Verificar status dos dados
+function checkDataStatus() {
+    fetch('/api/stats')
+        .then(response => response.json())
+        .then(data => {
+            if (data.error) {
+                showNoDataAlert();
+            } else {
+                hideNoDataAlert();
+                showFiltrosSection();
+                loadBalancoData();
+            }
+        })
+        .catch(error => {
+            console.error('Erro ao verificar dados:', error);
+            showNoDataAlert();
+        });
+}
+
+// Mostrar alerta de dados não carregados
+function showNoDataAlert() {
+    document.getElementById('noDataAlert').classList.remove('d-none');
+    document.getElementById('filtrosSection').style.display = 'none';
+    document.getElementById('resumoSection').style.display = 'none';
+}
+
+// Ocultar alerta de dados não carregados
+function hideNoDataAlert() {
+    document.getElementById('noDataAlert').classList.add('d-none');
+    document.getElementById('filtrosSection').style.display = 'block';
+    document.getElementById('resumoSection').style.display = 'block';
+}
+
+// Inicializar Select2
+function initializeSelect2() {
+    $('#origemFilter').select2({
+        placeholder: 'Selecione as origens',
+        allowClear: true,
+        width: '100%'
+    });
+    
+    $('#destinoFilter').select2({
+        placeholder: 'Selecione os destinos',
+        allowClear: true,
+        width: '100%'
+    });
+}
+
+// Inicializar event listeners
+function initializeEventListeners() {
+    document.getElementById('classificacaoFilter').addEventListener('change', function() {
+        aplicarFiltros();
+    });
+}
+
+// Mostrar seção de filtros
+function showFiltrosSection() {
+    // Carregar mesorregiões disponíveis
+    fetch('/api/mesorregioes')
+        .then(response => response.json())
+        .then(data => {
+            if (data.error) return;
+            
+            // Preencher select de origens
+            const origemSelect = document.getElementById('origemFilter');
+            origemSelect.innerHTML = '<option value=""></option>';
+            data.origens.forEach(origem => {
+                const option = document.createElement('option');
+                option.value = origem;
+                option.textContent = origem;
+                origemSelect.appendChild(option);
+            });
+            
+            // Preencher select de destinos
+            const destinoSelect = document.getElementById('destinoFilter');
+            destinoSelect.innerHTML = '<option value=""></option>';
+            data.destinos.forEach(destino => {
+                const option = document.createElement('option');
+                option.value = destino;
+                option.textContent = destino;
+                destinoSelect.appendChild(option);
+            });
+            
+            // Atualizar Select2
+            $('#origemFilter').trigger('change');
+            $('#destinoFilter').trigger('change');
+        });
+}
+
+// Carregar dados do balanço
+function loadBalancoData() {
+    const params = new URLSearchParams(currentFilters);
+    
+    fetch(`/api/balanco_embarques?${params.toString()}`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.error) {
+                console.error('Erro ao carregar dados do balanço:', data.error);
+                return;
+            }
+            
+            balancoData = data;
+            updateResumo(data.resumo);
+            updateBalancoTable(data.data);
+            createSaldoChart(data.data);
+        })
+        .catch(error => {
+            console.error('Erro ao carregar dados do balanço:', error);
+        });
+}
+
+// Atualizar resumo estatístico
+function updateResumo(resumo) {
+    document.getElementById('totalMesorregioes').textContent = resumo.total_mesorregioes.toLocaleString('pt-BR');
+    document.getElementById('totalProdutoras').textContent = resumo.produtoras.toLocaleString('pt-BR');
+    document.getElementById('totalConsumidoras').textContent = resumo.consumidoras.toLocaleString('pt-BR');
+    document.getElementById('totalEquilibradas').textContent = resumo.equilibradas.toLocaleString('pt-BR');
+}
+
+// Atualizar tabela de balanço
+function updateBalancoTable(data) {
+    const tbody = document.getElementById('balancoTableBody');
+    
+    if (!data || data.length === 0) {
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="8" class="text-center text-muted py-4">
+                    <i class="bi bi-exclamation-circle"></i> Nenhum dado encontrado
+                </td>
+            </tr>
+        `;
+        return;
+    }
+    
+    const html = data.map(item => {
+                 const saldoClass = 'text-dark';
+        const classificacaoClass = item.SALDO > 0 ? 'bg-success' : item.SALDO < 0 ? 'bg-warning' : 'bg-info';
+        
+        return `
+            <tr>
+                <td><strong>${item.MESORREGIÃO}</strong></td>
+                <td class="text-center">${item.EMBARQUES_ORIGEM.toLocaleString('pt-BR')}</td>
+                <td class="text-center">${item.EMBARQUES_DESTINO.toLocaleString('pt-BR')}</td>
+                                 <td class="text-center ${saldoClass} fw-bold">${item.SALDO.toLocaleString('pt-BR')}</td>
+                <td class="text-center">${item.TOTAL_MOVIMENTADO.toLocaleString('pt-BR')}</td>
+                                 <td class="text-center">${item.PERCENTUAL_ORIGEM}%</td>
+                 <td class="text-center">${item.PERCENTUAL_DESTINO}%</td>
+                <td class="text-center">
+                    <span class="badge ${classificacaoClass}">${item.CLASSIFICACAO}</span>
+                </td>
+            </tr>
+        `;
+    }).join('');
+    
+    tbody.innerHTML = html;
+}
+
+// Criar gráfico de saldo
+function createSaldoChart(data) {
+    const ctx = document.getElementById('saldoChart');
+    
+    if (saldoChart) {
+        saldoChart.destroy();
+    }
+    
+    if (!data || data.length === 0) return;
+    
+    // Pegar top 20 para o gráfico
+    const topData = data.slice(0, 20);
+    
+    const chartData = {
+        labels: topData.map(item => item.MESORREGIÃO.substring(0, 20) + (item.MESORREGIÃO.length > 20 ? '...' : '')),
+        datasets: [{
+                         label: 'Discrepância (Origem - Destino)',
+            data: topData.map(item => item.SALDO),
+            backgroundColor: topData.map(item => 
+                item.SALDO > 0 ? 'rgba(40, 167, 69, 0.7)' : 
+                item.SALDO < 0 ? 'rgba(255, 193, 7, 0.7)' : 
+                'rgba(23, 162, 184, 0.7)'
+            ),
+            borderColor: topData.map(item => 
+                item.SALDO > 0 ? 'rgb(40, 167, 69)' : 
+                item.SALDO < 0 ? 'rgb(255, 193, 7)' : 
+                'rgb(23, 162, 184)'
+            ),
+            borderWidth: 1
+        }]
+    };
+    
+    saldoChart = new Chart(ctx, {
+        type: 'bar',
+        data: chartData,
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    display: false
+                },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            const item = topData[context.dataIndex];
+                                                         return [
+                                 `Discrepância: ${item.SALDO > 0 ? '+' : ''}${item.SALDO.toLocaleString('pt-BR')}`,
+                                 `Origem: ${item.EMBARQUES_ORIGEM.toLocaleString('pt-BR')}`,
+                                 `Destino: ${item.EMBARQUES_DESTINO.toLocaleString('pt-BR')}`
+                             ];
+                        }
+                    }
+                }
+            },
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    ticks: {
+                        callback: function(value) {
+                            return value.toLocaleString('pt-BR');
+                        }
+                    }
+                },
+                x: {
+                    ticks: {
+                        maxRotation: 45,
+                        minRotation: 45
+                    }
+                }
+            }
+        }
+    });
+}
+
+// Aplicar filtros
+function aplicarFiltros() {
+    currentFilters = {
+        data_inicio: document.getElementById('dataInicio').value,
+        data_fim: document.getElementById('dataFim').value,
+        origens: $('#origemFilter').val(),
+        destinos: $('#destinoFilter').val(),
+        limit: document.getElementById('limit').value
+    };
+    
+    // Aplicar filtro de classificação se selecionado
+    const classificacao = document.getElementById('classificacaoFilter').value;
+    if (classificacao) {
+        currentFilters.classificacao = classificacao;
+    }
+    
+    loadBalancoData();
+    showToast('Filtros aplicados com sucesso!', 'success');
+}
+
+// Resetar filtros
+function resetarFiltros() {
+    document.getElementById('dataInicio').value = '';
+    document.getElementById('dataFim').value = '';
+    $('#origemFilter').val(null).trigger('change');
+    $('#destinoFilter').val(null).trigger('change');
+    document.getElementById('limit').value = '50';
+    document.getElementById('classificacaoFilter').value = '';
+    
+    currentFilters = {};
+    loadBalancoData();
+    showToast('Filtros resetados!', 'info');
+}
+
+// Atualizar balanço
+function refreshBalanco() {
+    loadBalancoData();
+    showToast('Balanço atualizado!', 'success');
+}
+
+// Exportar balanço
+function exportarBalanco() {
+    if (!balancoData) {
+        showToast('Nenhum dado disponível para exportar', 'warning');
+        return;
+    }
+    
+    const params = new URLSearchParams(currentFilters);
+    const excelUrl = `/api/exportar_balanco_excel?${params.toString()}`;
+    const link = document.createElement('a');
+    link.href = excelUrl;
+    link.download = `balanco_embarques_${new Date().toISOString().slice(0, 10)}.xlsx`;
+    link.click();
+    
+    showToast('Exportação iniciada!', 'success');
+}
+
+// Mostrar toast de notificação
+function showToast(message, type = 'info') {
+    const toastContainer = document.getElementById('toastContainer') || createToastContainer();
+    
+    const toast = document.createElement('div');
+    toast.className = `toast align-items-center text-white bg-${type} border-0`;
+    toast.setAttribute('role', 'alert');
+    toast.innerHTML = `
+        <div class="d-flex">
+            <div class="toast-body">${message}</div>
+            <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
+        </div>
+    `;
+    
+    toastContainer.appendChild(toast);
+    
+    const bsToast = new bootstrap.Toast(toast);
+    bsToast.show();
+    
+    // Remover toast após ser fechado
+    toast.addEventListener('hidden.bs.toast', () => {
+        toast.remove();
+    });
+}
+
+// Criar container de toasts
+function createToastContainer() {
+    const container = document.createElement('div');
+    container.id = 'toastContainer';
+    container.className = 'toast-container position-fixed top-0 end-0 p-3';
+    container.style.zIndex = '9999';
+    document.body.appendChild(container);
+    return container;
+}
+</script>
+
+<style>
+.table th {
+    font-weight: 600;
+    color: #495057;
+}
+
+.table td {
+    vertical-align: middle;
+}
+
+.badge {
+    font-size: 0.75rem;
+}
+
+#saldoChart {
+    min-height: 400px;
+}
+
+.table-responsive {
+    max-height: 600px;
+    overflow-y: auto;
+}
+</style>
+{% endblock %}

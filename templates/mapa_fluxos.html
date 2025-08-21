@@ -1,0 +1,808 @@
+{% extends "base.html" %}
+
+{% block title %}Mapa de Fluxos - Dashboard Logístico{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h1 class="h2 text-primary">
+                <i class="bi bi-geo-alt"></i> Mapa de Fluxos Geográficos
+            </h1>
+            <div class="d-flex gap-2">
+                <button class="btn btn-outline-primary" onclick="refreshMap()">
+                    <i class="bi bi-arrow-clockwise"></i> Atualizar
+                </button>
+                <button class="btn btn-success" onclick="exportMapData()">
+                    <i class="bi bi-download"></i> Exportar
+                </button>
+            </div>
+        </div>
+        
+        <!-- Alert para dados não carregados -->
+        <div id="noDataAlert" class="alert alert-info d-none">
+            <i class="bi bi-info-circle"></i>
+            <strong>Nenhum dado carregado.</strong> 
+            Use o menu "Upload" para carregar um arquivo Excel com dados de embarques.
+        </div>
+    </div>
+</div>
+
+<!-- Filtros -->
+<div class="row mb-4" id="filtrosSection" style="display: none;">
+    <div class="col-12">
+        <div class="card border-0 shadow-sm">
+            <div class="card-header bg-transparent border-0">
+                <h5 class="card-title mb-0">
+                    <i class="bi bi-funnel"></i> Filtros do Mapa
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-2 mb-3">
+                        <label for="dataInicio" class="form-label">Data Início</label>
+                        <input type="month" class="form-control" id="dataInicio">
+                    </div>
+                    <div class="col-md-2 mb-3">
+                        <label for="dataFim" class="form-label">Data Fim</label>
+                        <input type="month" class="form-control" id="dataFim">
+                    </div>
+                    <div class="col-md-2 mb-3">
+                        <label for="origemFilter" class="form-label">Origem</label>
+                        <select class="form-select" id="origemFilter" multiple>
+                            <!-- Preenchido via JavaScript -->
+                        </select>
+                    </div>
+                    <div class="col-md-2 mb-3">
+                        <label for="destinoFilter" class="form-label">Destino</label>
+                        <select class="form-select" id="destinoFilter" multiple>
+                            <!-- Preenchido via JavaScript -->
+                        </select>
+                    </div>
+                    <div class="col-md-2 mb-3">
+                        <label for="topN" class="form-label">Top N Fluxos</label>
+                        <select class="form-select" id="topN">
+                            <option value="10">Top 10</option>
+                            <option value="20" selected>Top 20</option>
+                            <option value="30">Top 30</option>
+                            <option value="50">Top 50</option>
+                        </select>
+                    </div>
+                    <div class="col-md-2 mb-3">
+                        <label for="volumeMin" class="form-label">Volume Mín.</label>
+                        <input type="number" class="form-control" id="volumeMin" placeholder="0" min="0">
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col-12">
+                        <button class="btn btn-primary me-2" onclick="aplicarFiltros()">
+                            <i class="bi bi-check-circle"></i> Aplicar Filtros
+                        </button>
+                        <button class="btn btn-outline-secondary" onclick="resetarFiltros()">
+                            <i class="bi bi-arrow-clockwise"></i> Resetar
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Controles do Mapa -->
+<div class="row mb-3">
+    <div class="col-12">
+        <div class="card border-0 shadow-sm">
+            <div class="card-body py-2">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div class="d-flex align-items-center gap-3">
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" id="showLabels" checked>
+                            <label class="form-check-label" for="showLabels">
+                                Mostrar Rótulos
+                            </label>
+                        </div>
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" id="showFluxos" checked>
+                            <label class="form-check-label" for="showFluxos">
+                                Mostrar Fluxos
+                            </label>
+                        </div>
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" id="showOrigins" checked>
+                            <label class="form-check-label" for="showOrigins">
+                                Mostrar Origens
+                            </label>
+                        </div>
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" id="showDestinations" checked>
+                            <label class="form-check-label" for="showDestinations">
+                                Mostrar Destinos
+                            </label>
+                        </div>
+                    </div>
+                                    <div class="d-flex gap-2">
+                    <button class="btn btn-sm btn-outline-info" onclick="testMapAPI()">
+                        <i class="bi bi-bug"></i> Testar API
+                    </button>
+                    <button class="btn btn-sm btn-outline-primary" onclick="resetMapView()">
+                        <i class="bi bi-arrow-clockwise"></i> Resetar Vista
+                    </button>
+                    <button class="btn btn-sm btn-outline-secondary" onclick="toggleFullscreen()">
+                        <i class="bi bi-arrows-fullscreen"></i> Tela Cheia
+                    </button>
+                </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Mapa -->
+<div class="row">
+    <div class="col-12">
+        <div class="card border-0 shadow-sm">
+            <div class="card-body p-0">
+                <div id="map" style="height: 600px; width: 100%;"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Estatísticas do Mapa -->
+<div class="row mt-4">
+    <div class="col-md-6">
+        <div class="card border-0 shadow-sm">
+            <div class="card-header bg-transparent border-0">
+                <h6 class="card-title mb-0">
+                    <i class="bi bi-info-circle"></i> Estatísticas do Mapa
+                </h6>
+            </div>
+            <div class="card-body">
+                <div class="row text-center">
+                    <div class="col-6">
+                        <h4 class="text-primary" id="totalFluxosMapa">-</h4>
+                        <small class="text-muted">Total de Fluxos</small>
+                    </div>
+                    <div class="col-6">
+                        <h4 class="text-success" id="volumeTotalMapa">-</h4>
+                        <small class="text-muted">Volume Total</small>
+                    </div>
+                </div>
+                <div class="row text-center mt-3">
+                    <div class="col-6">
+                        <h4 class="text-info" id="fluxoMaximoMapa">-</h4>
+                        <small class="text-muted">Fluxo Máximo</small>
+                    </div>
+                    <div class="col-6">
+                        <h4 class="text-warning" id="distanciaMedia">-</h4>
+                        <small class="text-muted">Distância Média (km)</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-6">
+        <div class="card border-0 shadow-sm">
+            <div class="card-header bg-transparent border-0">
+                <h6 class="card-title mb-0">
+                    <i class="bi bi-list-ol"></i> Fluxos Principais
+                </h6>
+            </div>
+            <div class="card-body">
+                <div id="fluxosPrincipaisList">
+                    <div class="text-center text-muted py-3">
+                        <i class="bi bi-arrow-clockwise"></i> Carregando...
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+let map;
+let fluxosLayer;
+let origensLayer;
+let destinosLayer;
+let labelsLayer;
+let currentFilters = {};
+let mapData = null;
+
+// Inicializar página
+document.addEventListener('DOMContentLoaded', function() {
+    checkDataStatus();
+    initializeSelect2();
+    initializeEventListeners();
+    initializeMap();
+});
+
+// Verificar status dos dados
+function checkDataStatus() {
+    fetch('/api/stats')
+        .then(response => response.json())
+        .then(data => {
+            if (data.error) {
+                showNoDataAlert();
+            } else {
+                hideNoDataAlert();
+                showFiltrosSection();
+                loadMapData();
+            }
+        })
+        .catch(error => {
+            console.error('Erro ao verificar dados:', error);
+            showNoDataAlert();
+        });
+}
+
+// Mostrar alerta de dados não carregados
+function showNoDataAlert() {
+    document.getElementById('noDataAlert').classList.remove('d-none');
+    document.getElementById('filtrosSection').style.display = 'none';
+}
+
+// Ocultar alerta de dados não carregados
+function hideNoDataAlert() {
+    document.getElementById('noDataAlert').classList.add('d-none');
+    document.getElementById('filtrosSection').style.display = 'block';
+}
+
+// Inicializar Select2
+function initializeSelect2() {
+    $('#origemFilter').select2({
+        placeholder: 'Selecione as origens',
+        allowClear: true,
+        width: '100%'
+    });
+    
+    $('#destinoFilter').select2({
+        placeholder: 'Selecione os destinos',
+        allowClear: true,
+        width: '100%'
+    });
+}
+
+// Inicializar event listeners
+function initializeEventListeners() {
+    document.getElementById('showLabels').addEventListener('change', function() {
+        toggleLabels();
+    });
+    
+    document.getElementById('showFluxos').addEventListener('change', function() {
+        toggleFluxos();
+    });
+    
+    document.getElementById('showOrigins').addEventListener('change', function() {
+        toggleOrigins();
+    });
+    
+    document.getElementById('showDestinations').addEventListener('change', function() {
+        toggleDestinations();
+    });
+}
+
+// Inicializar mapa
+function initializeMap() {
+    // Criar mapa centrado no Brasil
+    map = L.map('map').setView([-15.78, -47.92], 5);
+    
+    // Adicionar tile layer (OpenStreetMap)
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '© OpenStreetMap contributors',
+        maxZoom: 18
+    }).addTo(map);
+    
+    // Criar grupos de layers
+    fluxosLayer = L.layerGroup().addTo(map);
+    origensLayer = L.layerGroup().addTo(map);
+    destinosLayer = L.layerGroup().addTo(map);
+    labelsLayer = L.layerGroup().addTo(map);
+    
+    // Adicionar controle de layers
+    const overlays = {
+        "Fluxos": fluxosLayer,
+        "Origens": origensLayer,
+        "Destinos": destinosLayer,
+        "Rótulos": labelsLayer
+    };
+    
+    L.control.layers(null, overlays).addTo(map);
+}
+
+// Mostrar seção de filtros
+function showFiltrosSection() {
+    // Carregar mesorregiões disponíveis
+    fetch('/api/mesorregioes')
+        .then(response => response.json())
+        .then(data => {
+            if (data.error) return;
+            
+            // Preencher select de origens
+            const origemSelect = document.getElementById('origemFilter');
+            origemSelect.innerHTML = '<option value=""></option>';
+            data.origens.forEach(origem => {
+                const option = document.createElement('option');
+                option.value = origem;
+                option.textContent = origem;
+                origemSelect.appendChild(option);
+            });
+            
+            // Preencher select de destinos
+            const destinoSelect = document.getElementById('destinoFilter');
+            destinoSelect.innerHTML = '<option value=""></option>';
+            data.destinos.forEach(destino => {
+                const option = document.createElement('option');
+                option.value = destino;
+                option.textContent = destino;
+                destinoSelect.appendChild(option);
+            });
+            
+            // Atualizar Select2
+            $('#origemFilter').trigger('change');
+            $('#destinoFilter').trigger('change');
+        });
+}
+
+// Carregar dados do mapa
+function loadMapData() {
+    const params = new URLSearchParams(currentFilters);
+    
+    console.log('Carregando dados do mapa com filtros:', currentFilters);
+    console.log('URL da API:', `/api/fluxos_mapa?${params.toString()}`);
+    
+    fetch(`/api/fluxos_mapa?${params.toString()}`)
+        .then(response => {
+            console.log('Resposta da API do mapa:', response.status, response.statusText);
+            return response.json();
+        })
+        .then(data => {
+            console.log('Dados recebidos da API do mapa:', data);
+            
+            if (data.error) {
+                console.error('Erro ao carregar dados do mapa:', data.error);
+                return;
+            }
+            
+            if (!data.fluxos || data.fluxos.length === 0) {
+                console.warn('Nenhum fluxo encontrado para exibir no mapa');
+                return;
+            }
+            
+            console.log(`Renderizando ${data.fluxos.length} fluxos no mapa`);
+            mapData = data;
+            renderMap(data);
+            updateMapStatistics(data);
+            updateFluxosPrincipais(data);
+        })
+        .catch(error => {
+            console.error('Erro ao carregar dados do mapa:', error);
+        });
+}
+
+// Renderizar mapa
+function renderMap(data) {
+    console.log('Iniciando renderização do mapa...');
+    
+    // Limpar layers existentes
+    fluxosLayer.clearLayers();
+    origensLayer.clearLayers();
+    destinosLayer.clearLayers();
+    labelsLayer.clearLayers();
+    
+    if (!data.fluxos || data.fluxos.length === 0) {
+        console.warn('Nenhum fluxo para renderizar');
+        return;
+    }
+    
+    console.log(`Renderizando ${data.fluxos.length} fluxos`);
+    
+    // Calcular valores para normalização
+    const valores = data.fluxos.map(f => f.EMBARQUES);
+    const maxValor = Math.max(...valores);
+    console.log('Valor máximo para normalização:', maxValor);
+    
+    let fluxosRenderizados = 0;
+    let fluxosSemCoordenadas = 0;
+    
+    data.fluxos.forEach((fluxo, index) => {
+        const origem = fluxo['MESORREGIÃO - ORIGEM'];
+        const destino = fluxo['MESORREGIÃO - DESTINO'];
+        const embarques = fluxo.EMBARQUES;
+        const origemCoords = fluxo.origem_coords;
+        const destinoCoords = fluxo.destino_coords;
+        
+        console.log(`Fluxo ${index + 1}: ${origem} → ${destino} (${embarques} embarques)`);
+        console.log(`  Coordenadas origem:`, origemCoords);
+        console.log(`  Coordenadas destino:`, destinoCoords);
+        
+        if (origemCoords && destinoCoords && 
+            Array.isArray(origemCoords) && Array.isArray(destinoCoords) &&
+            origemCoords.length === 2 && destinoCoords.length === 2) {
+            
+            // Calcular largura da linha baseada no volume
+            const lineWidth = Math.max(1, (embarques / maxValor) * 8);
+            
+            // Calcular cor baseada no volume
+            const intensity = embarques / maxValor;
+            const color = getLineColor(intensity);
+            
+            console.log(`  Renderizando fluxo com largura ${lineWidth} e cor ${color}`);
+            
+            // Criar linha de fluxo
+            const fluxoLine = L.polyline([origemCoords, destinoCoords], {
+                color: color,
+                weight: lineWidth,
+                opacity: 0.7
+            }).addTo(fluxosLayer);
+            
+            // Adicionar popup com informações
+            fluxoLine.bindPopup(`
+                <div class="text-center">
+                    <h6><strong>Fluxo: ${origem} → ${destino}</strong></h6>
+                    <p class="mb-1"><strong>Embarques:</strong> ${embarques.toLocaleString('pt-BR')}</p>
+                    <small class="text-muted">Clique para mais detalhes</small>
+                </div>
+            `);
+            
+            // Adicionar marcador de origem
+            const origemMarker = L.circleMarker(origemCoords, {
+                radius: 8,
+                fillColor: '#007bff',
+                color: '#fff',
+                weight: 2,
+                opacity: 1,
+                fillOpacity: 0.8
+            }).addTo(origensLayer);
+            
+            origemMarker.bindPopup(`
+                <div class="text-center">
+                    <h6><strong>Origem: ${origem}</strong></h6>
+                    <p class="mb-0">Coordenadas: ${origemCoords[0].toFixed(4)}, ${origemCoords[1].toFixed(4)}</p>
+                </div>
+            `);
+            
+            // Adicionar marcador de destino
+            const destinoMarker = L.circleMarker(destinoCoords, {
+                radius: 8,
+                fillColor: '#28a745',
+                color: '#fff',
+                weight: 2,
+                opacity: 1,
+                fillOpacity: 0.8
+            }).addTo(destinosLayer);
+            
+            destinoMarker.bindPopup(`
+                <div class="text-center">
+                    <h6><strong>Destino: ${destino}</strong></h6>
+                    <p class="mb-0">Coordenadas: ${destinoCoords[0].toFixed(4)}, ${destinoCoords[1].toFixed(4)}</p>
+                </div>
+            `);
+            
+            // Adicionar rótulos se habilitado
+            if (document.getElementById('showLabels').checked) {
+                // Rótulo da origem
+                const origemLabel = L.tooltip({
+                    permanent: true,
+                    direction: 'center',
+                    className: 'map-label'
+                }).setContent(origem);
+                origemMarker.bindTooltip(origemLabel);
+                
+                // Rótulo do destino
+                const destinoLabel = L.tooltip({
+                    permanent: true,
+                    direction: 'center',
+                    className: 'map-label'
+                }).setContent(destino);
+                destinoMarker.bindTooltip(destinoLabel);
+            }
+            
+            fluxosRenderizados++;
+        } else {
+            console.warn(`  Fluxo ${index + 1} sem coordenadas válidas`);
+            fluxosSemCoordenadas++;
+        }
+    });
+    
+    console.log(`Renderização concluída: ${fluxosRenderizados} fluxos renderizados, ${fluxosSemCoordenadas} sem coordenadas`);
+    
+    // Ajustar vista do mapa para mostrar todos os fluxos
+    if (fluxosRenderizados > 0) {
+        const fluxosValidos = data.fluxos.filter(f => 
+            f.origem_coords && f.destino_coords && 
+            Array.isArray(f.origem_coords) && Array.isArray(f.destino_coords) &&
+            f.origem_coords.length === 2 && f.destino_coords.length === 2
+        );
+        
+        if (fluxosValidos.length > 0) {
+            const bounds = L.latLngBounds(fluxosValidos.map(f => [f.origem_coords, f.destino_coords]).flat());
+            map.fitBounds(bounds, { padding: [20, 20] });
+            console.log('Vista do mapa ajustada para mostrar todos os fluxos');
+        }
+    }
+}
+
+// Obter cor da linha baseada na intensidade
+function getLineColor(intensity) {
+    if (intensity < 0.2) return '#fee5d9';
+    if (intensity < 0.4) return '#fcae91';
+    if (intensity < 0.6) return '#fb6a4a';
+    if (intensity < 0.8) return '#de2d26';
+    return '#a50f15';
+}
+
+// Atualizar estatísticas do mapa
+function updateMapStatistics(data) {
+    if (!data.fluxos || data.fluxos.length === 0) return;
+    
+    const totalFluxos = data.fluxos.length;
+    const volumeTotal = data.fluxos.reduce((sum, f) => sum + f.EMBARQUES, 0);
+    const fluxoMaximo = Math.max(...data.fluxos.map(f => f.EMBARQUES));
+    
+    // Calcular distância média (aproximada)
+    let distanciaTotal = 0;
+    let fluxosComDistancia = 0;
+    
+    data.fluxos.forEach(fluxo => {
+        if (fluxo.origem_coords && fluxo.destino_coords) {
+            const distancia = calculateDistance(
+                fluxo.origem_coords[0], fluxo.origem_coords[1],
+                fluxo.destino_coords[0], fluxo.destino_coords[1]
+            );
+            distanciaTotal += distancia;
+            fluxosComDistancia++;
+        }
+    });
+    
+    const distanciaMedia = fluxosComDistancia > 0 ? Math.round(distanciaTotal / fluxosComDistancia) : 0;
+    
+    document.getElementById('totalFluxosMapa').textContent = totalFluxos.toLocaleString('pt-BR');
+    document.getElementById('volumeTotalMapa').textContent = volumeTotal.toLocaleString('pt-BR');
+    document.getElementById('fluxoMaximoMapa').textContent = fluxoMaximo.toLocaleString('pt-BR');
+    document.getElementById('distanciaMedia').textContent = distanciaMedia.toLocaleString('pt-BR');
+}
+
+// Calcular distância entre duas coordenadas (fórmula de Haversine)
+function calculateDistance(lat1, lon1, lat2, lon2) {
+    const R = 6371; // Raio da Terra em km
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLon = (lon2 - lon1) * Math.PI / 180;
+    const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+              Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+              Math.sin(dLon/2) * Math.sin(dLon/2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+    return R * c;
+}
+
+// Atualizar fluxos principais
+function updateFluxosPrincipais(data) {
+    if (!data.fluxos || data.fluxos.length === 0) return;
+    
+    // Ordenar por volume e pegar top 5
+    const topFluxos = data.fluxos
+        .sort((a, b) => b.EMBARQUES - a.EMBARQUES)
+        .slice(0, 5);
+    
+    const html = topFluxos.map((fluxo, index) => `
+        <div class="d-flex justify-content-between align-items-center py-2 ${index < 3 ? 'fw-bold' : ''}">
+            <div class="d-flex align-items-center">
+                <span class="badge bg-primary me-2">${index + 1}</span>
+                <div>
+                    <div class="small text-muted">${fluxo['MESORREGIÃO - ORIGEM']}</div>
+                    <div class="small">→ ${fluxo['MESORREGIÃO - DESTINO']}</div>
+                </div>
+            </div>
+            <div class="text-end">
+                <div class="fw-bold">${fluxo.EMBARQUES.toLocaleString('pt-BR')}</div>
+            </div>
+        </div>
+    `).join('');
+    
+    document.getElementById('fluxosPrincipaisList').innerHTML = html;
+}
+
+// Aplicar filtros
+function aplicarFiltros() {
+    currentFilters = {
+        data_inicio: document.getElementById('dataInicio').value,
+        data_fim: document.getElementById('dataFim').value,
+        origens: $('#origemFilter').val(),
+        destinos: $('#destinoFilter').val(),
+        top_n: document.getElementById('topN').value,
+        volume_min: document.getElementById('volumeMin').value
+    };
+    
+    loadMapData();
+    showToast('Filtros aplicados com sucesso!', 'success');
+}
+
+// Resetar filtros
+function resetarFiltros() {
+    document.getElementById('dataInicio').value = '';
+    document.getElementById('dataFim').value = '';
+    $('#origemFilter').val(null).trigger('change');
+    $('#destinoFilter').val(null).trigger('change');
+    document.getElementById('topN').value = '20';
+    document.getElementById('volumeMin').value = '';
+    
+    currentFilters = {};
+    loadMapData();
+    showToast('Filtros resetados!', 'info');
+}
+
+// Toggle labels
+function toggleLabels() {
+    if (document.getElementById('showLabels').checked) {
+        labelsLayer.addTo(map);
+    } else {
+        map.removeLayer(labelsLayer);
+    }
+}
+
+// Toggle fluxos
+function toggleFluxos() {
+    if (document.getElementById('showFluxos').checked) {
+        fluxosLayer.addTo(map);
+    } else {
+        map.removeLayer(fluxosLayer);
+    }
+}
+
+// Toggle origens
+function toggleOrigins() {
+    if (document.getElementById('showOrigins').checked) {
+        origensLayer.addTo(map);
+    } else {
+        map.removeLayer(origensLayer);
+    }
+}
+
+// Toggle destinos
+function toggleDestinations() {
+    if (document.getElementById('showDestinations').checked) {
+        destinosLayer.addTo(map);
+    } else {
+        map.removeLayer(destinosLayer);
+    }
+}
+
+// Resetar vista do mapa
+function resetMapView() {
+    map.setView([-15.78, -47.92], 5);
+}
+
+// Testar API do mapa
+function testMapAPI() {
+    console.log('=== TESTE DA API DO MAPA ===');
+    
+    // Testar API sem filtros
+    fetch('/api/fluxos_mapa')
+        .then(response => response.json())
+        .then(data => {
+            console.log('Resposta da API sem filtros:', data);
+            
+            if (data.fluxos && data.fluxos.length > 0) {
+                console.log(`Total de fluxos: ${data.fluxos.length}`);
+                console.log('Primeiro fluxo:', data.fluxos[0]);
+                
+                // Verificar coordenadas
+                const fluxo = data.fluxos[0];
+                console.log('Coordenadas origem:', fluxo.origem_coords);
+                console.log('Coordenadas destino:', fluxo.destino_coords);
+                console.log('Tipo origem_coords:', typeof fluxo.origem_coords);
+                console.log('Tipo destino_coords:', typeof fluxo.destino_coords);
+                console.log('É array origem:', Array.isArray(fluxo.origem_coords));
+                console.log('É array destino:', Array.isArray(fluxo.destino_coords));
+            }
+        })
+        .catch(error => {
+            console.error('Erro ao testar API:', error);
+        });
+}
+
+// Toggle tela cheia
+function toggleFullscreen() {
+    const mapContainer = document.getElementById('map');
+    if (!document.fullscreenElement) {
+        mapContainer.requestFullscreen();
+    } else {
+        document.exitFullscreen();
+    }
+}
+
+// Atualizar mapa
+function refreshMap() {
+    loadMapData();
+    showToast('Mapa atualizado!', 'success');
+}
+
+// Exportar dados do mapa
+function exportMapData() {
+    if (!mapData) {
+        showToast('Nenhum dado disponível para exportar', 'warning');
+        return;
+    }
+    
+    const params = new URLSearchParams(currentFilters);
+    const excelUrl = `/api/exportar_excel?${params.toString()}`;
+    const link = document.createElement('a');
+    link.href = excelUrl;
+    link.download = `mapa_fluxos_${new Date().toISOString().slice(0, 10)}.xlsx`;
+    link.click();
+    
+    showToast('Exportação iniciada!', 'success');
+}
+
+// Mostrar toast de notificação
+function showToast(message, type = 'info') {
+    const toastContainer = document.getElementById('toastContainer') || createToastContainer();
+    
+    const toast = document.createElement('div');
+    toast.className = `toast align-items-center text-white bg-${type} border-0`;
+    toast.setAttribute('role', 'alert');
+    toast.innerHTML = `
+        <div class="d-flex">
+            <div class="toast-body">${message}</div>
+            <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
+        </div>
+    `;
+    
+    toastContainer.appendChild(toast);
+    
+    const bsToast = new bootstrap.Toast(toast);
+    bsToast.show();
+    
+    // Remover toast após ser fechado
+    toast.addEventListener('hidden.bs.toast', () => {
+        toast.remove();
+    });
+}
+
+// Criar container de toasts
+function createToastContainer() {
+    const container = document.createElement('div');
+    container.id = 'toastContainer';
+    container.className = 'toast-container position-fixed top-0 end-0 p-3';
+    container.style.zIndex = '9999';
+    document.body.appendChild(container);
+    return container;
+}
+</script>
+
+<style>
+.map-label {
+    background: rgba(255, 255, 255, 0.9);
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    padding: 2px 6px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: #333;
+    white-space: nowrap;
+}
+
+#map {
+    border-radius: 0.375rem;
+}
+
+.leaflet-popup-content {
+    margin: 8px 12px;
+}
+
+.leaflet-popup-content h6 {
+    margin-bottom: 8px;
+    color: #007bff;
+}
+
+.leaflet-popup-content p {
+    margin-bottom: 4px;
+}
+
+.leaflet-popup-content small {
+    color: #6c757d;
+}
+</style>
+{% endblock %}
