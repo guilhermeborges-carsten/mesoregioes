@@ -1,7 +1,3 @@
-# Core
-setuptools>=65.0.0
-wheel>=0.38.0
-pip>=24.2
 
 # Flask
 Flask==2.3.3
@@ -14,3 +10,4 @@ openpyxl==3.1.2
 # Geospatial
 geopandas==0.12.2
 shapely==1.8.2
+
