@@ -1,19 +1,15 @@
-setuptools>=65.0.0
-wheel>=0.38.0
-pip>=24.2
+setuptools>=70.0.0
+wheel>=0.40.0
+pip>=25.1.1
 
-# Flask
 Flask==2.3.3
-
-# Data handling
-pandas==2.2.3
-numpy==1.24.3
-openpyxl==3.1.2
 gunicorn==21.2.0
 
-# Geospatial
-geopandas==0.12.2
-shapely==1.8.2
+# Use versões compatíveis com wheels para 3.13
+numpy>=2.1.0
+pandas>=2.2.3
+openpyxl==3.1.2
 
-
-
+# Geospatial libs recentes (geopandas/shapely compatíveis com Python 3.13)
+geopandas>=0.14.4
+shapely>=2.0.3
