@@ -4,13 +4,7 @@ services:
     env: python
     plan: free
     buildCommand: pip install -r requirements.txt
-    startCommand: python app.py
+    startCommand: gunicorn app:app --bind 0.0.0.0:$PORT
     envVars:
       - key: PYTHON_VERSION
-        value: 3.9.16
-      - key: PORT
-        value: 5000
-    staticPublishPath: ./static
-    staticRoutes:
-      - /static
-
+        value: 3.10.14
