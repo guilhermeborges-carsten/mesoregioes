@@ -61,6 +61,12 @@
                             <i class="bi bi-calculator"></i> Balanço
                         </a>
                     </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('balanco_clientes') }}">
+                            <i class="bi bi-building"></i> Balanço por Clientes
+                        </a>
+                    </li>
+
                 </ul>
                 
                 <!-- Upload de arquivo -->
@@ -101,7 +107,7 @@
                         <div class="mb-3">
                             <label for="fileInput" class="form-label">Selecione o arquivo Excel (.xlsx ou .xls)</label>
                             <input type="file" class="form-control" id="fileInput" name="file" accept=".xlsx,.xls" required>
-                            <div class="form-text">O arquivo deve conter as colunas: MESORREGIÃO - ORIGEM, MESORREGIÃO - DESTINO, MÊS, EMBARQUES</div>
+                            <div class="form-text">O arquivo deve conter as colunas: TRECHO - FROTA PRÓPRIA, MESORREGIÃO - ORIGEM, MESORREGIÃO - DESTINO, MÊS, EMBARQUES</div>
                         </div>
                     </form>
                     <div id="uploadProgress" class="progress d-none">

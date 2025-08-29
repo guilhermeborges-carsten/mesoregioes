@@ -1,0 +1,619 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Análise de Clientes - Dashboard de Mesorregiões</title>
+    
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Bootstrap Icons -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css" rel="stylesheet">
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    
+    <style>
+        .card-insight {
+            transition: transform 0.2s;
+            border-left: 4px solid #007bff;
+        }
+        
+        .card-insight:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+        
+        .score-performance {
+            font-size: 2rem;
+            font-weight: bold;
+        }
+        
+        .score-excelente { color: #28a745; }
+        .score-bom { color: #17a2b8; }
+        .score-regular { color: #ffc107; }
+        .score-ruim { color: #dc3545; }
+        
+        .chart-container {
+            position: relative;
+            height: 400px;
+            margin: 20px 0;
+        }
+        
+        .insight-badge {
+            font-size: 0.85rem;
+            margin: 2px;
+        }
+        
+        .oportunidade-badge {
+            background-color: #28a745;
+            color: white;
+        }
+        
+        .melhoria-badge {
+            background-color: #ffc107;
+            color: #212529;
+        }
+        
+        .cliente-card {
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        
+        .cliente-card:hover {
+            transform: scale(1.02);
+            box-shadow: 0 8px 16px rgba(0,0,0,0.1);
+        }
+        
+        .cliente-card.selected {
+            border: 2px solid #007bff;
+            background-color: #f8f9fa;
+        }
+        
+
+        
+        .metric-card {
+            text-align: center;
+            padding: 20px;
+            border-radius: 10px;
+            background: white;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        
+        .metric-value {
+            font-size: 2.5rem;
+            font-weight: bold;
+            color: #007bff;
+        }
+        
+        .metric-label {
+            color: #6c757d;
+            font-size: 0.9rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+    </style>
+</head>
+<body>
+    <!-- Navbar -->
+    <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
+        <div class="container">
+            <a class="navbar-brand" href="{{ url_for('index') }}">
+                <i class="bi bi-geo-alt"></i> Dashboard Mesorregiões
+            </a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav me-auto">
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('index') }}">
+                            <i class="bi bi-house"></i> Início
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('heatmap') }}">
+                            <i class="bi bi-grid-3x3-gap"></i> Heatmap
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('mapa_fluxos') }}">
+                            <i class="bi bi-map"></i> Mapa de Fluxos
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('tabela') }}">
+                            <i class="bi bi-table"></i> Tabela
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('balanco') }}">
+                            <i class="bi bi-calculator"></i> Balanço
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('balanco_clientes') }}">
+                            <i class="bi bi-people"></i> Balanço por Clientes
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link active" href="{{ url_for('analise_clientes') }}">
+                            <i class="bi bi-graph-up"></i> Análise de Clientes
+                        </a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+
+
+    <div class="container">
+
+
+        <!-- Métricas Gerais -->
+        <div class="row mb-4">
+            <div class="col-md-3">
+                <div class="metric-card">
+                    <div class="metric-value" id="totalEmbarques">-</div>
+                    <div class="metric-label">Total de Embarques</div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="metric-card">
+                    <div class="metric-value" id="totalClientes">-</div>
+                    <div class="metric-label">Total de Clientes</div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="metric-card">
+                    <div class="metric-value" id="crescimentoGeral">-</div>
+                    <div class="metric-label">Crescimento Geral (%)</div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="metric-card">
+                    <div class="metric-value" id="clientesAtivos">-</div>
+                    <div class="metric-label">Clientes Ativos</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Gráfico de Evolução Mensal -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="bi bi-graph-up"></i> Evolução de Embarques por Mês
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="chart-container">
+                    <canvas id="evolucaoChart"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <!-- Seleção de Cliente para Análise Detalhada -->
+        <div class="row mb-4">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="mb-0">
+                            <i class="bi bi-person"></i> Selecionar Cliente para Análise Detalhada
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row" id="clientesGrid">
+                            <!-- Cards dos clientes serão inseridos aqui -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Análise Detalhada do Cliente Selecionado -->
+        <div id="analiseDetalhada" class="d-none">
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="bi bi-bar-chart"></i> Análise Detalhada: <span id="nomeClienteSelecionado"></span>
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <!-- Score de Performance -->
+                    <div class="row mb-4">
+                        <div class="col-md-4">
+                            <div class="text-center">
+                                <div class="score-performance" id="scorePerformance">-</div>
+                                <div class="text-muted">Score de Performance</div>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="text-center">
+                                <div class="h3" id="totalEmbarquesCliente">-</div>
+                                <div class="text-muted">Total de Embarques</div>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="text-center">
+                                <div class="h3" id="crescimentoCliente">-</div>
+                                <div class="text-muted">Crescimento (%)</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Insights e Recomendações -->
+                    <div class="row mb-4">
+                        <div class="col-md-6">
+                            <h6><i class="bi bi-lightbulb text-success"></i> Oportunidades</h6>
+                            <div id="oportunidadesList">
+                                <!-- Oportunidades serão inseridas aqui -->
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <h6><i class="bi bi-tools text-warning"></i> Áreas de Melhoria</h6>
+                            <div id="melhoriasList">
+                                <!-- Melhorias serão inseridas aqui -->
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Top Origens e Destinos -->
+                    <div class="row">
+                        <div class="col-md-6">
+                            <h6><i class="bi bi-geo-alt text-primary"></i> Top 5 Origens</h6>
+                            <div id="topOrigensCliente">
+                                <!-- Top origens serão inseridas aqui -->
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <h6><i class="bi bi-geo-alt text-info"></i> Top 5 Destinos</h6>
+                            <div id="topDestinosCliente">
+                                <!-- Top destinos serão inseridas aqui -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Distribuição de Clientes -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="bi bi-pie-chart"></i> Distribuição de Clientes por Volume
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="chart-container">
+                    <canvas id="distribuicaoChart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    
+    <script>
+        // Variáveis globais
+        let evolucaoChart = null;
+        let distribuicaoChart = null;
+        let insightsData = null;
+        let clienteSelecionado = null;
+
+        // Inicializar a página
+        document.addEventListener('DOMContentLoaded', function() {
+            carregarDados();
+        });
+
+
+
+        // Carregar dados principais
+        function carregarDados() {
+            carregarEvolucaoMensal();
+            carregarInsights();
+        }
+
+        // Carregar evolução mensal
+        function carregarEvolucaoMensal() {
+            fetch('/api/evolucao_mensal_clientes')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.error) {
+                        console.error('Erro ao carregar evolução mensal:', data.error);
+                        return;
+                    }
+
+                    criarGraficoEvolucao(data);
+                })
+                .catch(error => {
+                    console.error('Erro ao carregar evolução mensal:', error);
+                });
+        }
+
+        // Criar gráfico de evolução
+        function criarGraficoEvolucao(data) {
+            const ctx = document.getElementById('evolucaoChart').getContext('2d');
+            
+            if (evolucaoChart) {
+                evolucaoChart.destroy();
+            }
+
+            // Preparar dados para o gráfico
+            const datasets = [];
+            const colors = ['#007bff', '#28a745', '#ffc107', '#dc3545', '#6f42c1', '#fd7e14', '#20c997', '#e83e8c'];
+
+            data.clientes.forEach((cliente, index) => {
+                const dadosCliente = data.dados[cliente];
+                if (dadosCliente && dadosCliente.embarques.length > 0) {
+                    datasets.push({
+                        label: cliente,
+                        data: dadosCliente.embarques,
+                        borderColor: colors[index % colors.length],
+                        backgroundColor: colors[index % colors.length] + '20',
+                        tension: 0.1,
+                        fill: false
+                    });
+                }
+            });
+
+            evolucaoChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: data.clientes.length > 0 && data.dados[data.clientes[0]] ? data.dados[data.clientes[0]].labels : [],
+                    datasets: datasets
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'top',
+                        },
+                        title: {
+                            display: true,
+                            text: 'Evolução de Embarques por Cliente'
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            title: {
+                                display: true,
+                                text: 'Embarques'
+                            }
+                        },
+                        x: {
+                            title: {
+                                display: true,
+                                text: 'Período'
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        // Carregar insights
+        function carregarInsights() {
+            fetch('/api/insights_clientes')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.error) {
+                        console.error('Erro ao carregar insights:', data.error);
+                        return;
+                    }
+
+                    insightsData = data;
+                    
+                    atualizarMetricasGerais(data.insights_geral);
+                    criarGridClientes(data.insights_clientes);
+                    criarGraficoDistribuicao(data.insights_geral.distribuicao_clientes);
+                })
+                .catch(error => {
+                    console.error('Erro ao carregar insights:', error);
+                });
+        }
+
+        // Atualizar métricas gerais
+        function atualizarMetricasGerais(insightsGeral) {
+            document.getElementById('totalEmbarques').textContent = insightsGeral.total_embarques.toLocaleString('pt-BR');
+            document.getElementById('totalClientes').textContent = insightsGeral.total_clientes;
+            document.getElementById('crescimentoGeral').textContent = insightsGeral.crescimento_geral + '%';
+            document.getElementById('clientesAtivos').textContent = insightsGeral.clientes_ativos;
+        }
+
+        // Criar grid de clientes
+        function criarGridClientes(insightsClientes) {
+            const clientesGrid = document.getElementById('clientesGrid');
+            clientesGrid.innerHTML = '';
+
+            Object.entries(insightsClientes).forEach(([cliente, insights]) => {
+                const card = document.createElement('div');
+                card.className = 'col-md-4 col-lg-3 mb-3';
+                
+                const scoreClass = getScoreClass(insights.score_performance);
+                
+                card.innerHTML = `
+                    <div class="card cliente-card" onclick="selecionarCliente('${cliente}', event)">
+                        <div class="card-body text-center">
+                            <h6 class="card-title">${cliente}</h6>
+                            <div class="score-performance ${scoreClass}">${insights.score_performance}</div>
+                            <small class="text-muted">Score</small>
+                            <hr>
+                            <div class="row text-center">
+                                <div class="col-6">
+                                    <div class="h6">${insights.estatisticas.total_embarques.toLocaleString('pt-BR')}</div>
+                                    <small class="text-muted">Embarques</small>
+                                </div>
+                                <div class="col-6">
+                                    <div class="h6">${insights.estatisticas.crescimento_percentual}%</div>
+                                    <small class="text-muted">Crescimento</small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                
+                clientesGrid.appendChild(card);
+            });
+        }
+
+        // Selecionar cliente para análise detalhada
+        function selecionarCliente(cliente, event) {
+            console.log('Selecionando cliente:', cliente);
+            
+            // Remover seleção anterior
+            document.querySelectorAll('.cliente-card').forEach(card => {
+                card.classList.remove('selected');
+            });
+            
+            // Selecionar novo cliente
+            if (event && event.currentTarget) {
+                event.currentTarget.classList.add('selected');
+            }
+            
+            clienteSelecionado = cliente;
+            mostrarAnaliseDetalhada(cliente);
+        }
+
+        // Mostrar análise detalhada
+        function mostrarAnaliseDetalhada(cliente) {
+            console.log('Mostrando análise detalhada para:', cliente);
+            console.log('insightsData:', insightsData);
+            
+            if (!insightsData) {
+                console.error('insightsData não está disponível');
+                return;
+            }
+            
+            if (!insightsData.insights_clientes) {
+                console.error('insights_clientes não está disponível');
+                return;
+            }
+            
+            if (!insightsData.insights_clientes[cliente]) {
+                console.error(`Cliente ${cliente} não encontrado em insights_clientes`);
+                console.log('Clientes disponíveis:', Object.keys(insightsData.insights_clientes));
+                return;
+            }
+
+            const insights = insightsData.insights_clientes[cliente];
+            console.log('Insights do cliente:', insights);
+            
+            // Atualizar nome do cliente
+            document.getElementById('nomeClienteSelecionado').textContent = cliente;
+            
+            // Atualizar métricas
+            document.getElementById('scorePerformance').textContent = insights.score_performance;
+            document.getElementById('scorePerformance').className = `score-performance ${getScoreClass(insights.score_performance)}`;
+            document.getElementById('totalEmbarquesCliente').textContent = insights.estatisticas.total_embarques.toLocaleString('pt-BR');
+            document.getElementById('crescimentoCliente').textContent = insights.estatisticas.crescimento_percentual + '%';
+            
+            // Atualizar oportunidades
+            const oportunidadesList = document.getElementById('oportunidadesList');
+            if (insights.oportunidades.length > 0) {
+                oportunidadesList.innerHTML = insights.oportunidades.map(op => 
+                    `<span class="badge oportunidade-badge insight-badge">${op}</span>`
+                ).join('');
+            } else {
+                oportunidadesList.innerHTML = '<span class="text-muted">Nenhuma oportunidade identificada</span>';
+            }
+            
+            // Atualizar melhorias
+            const melhoriasList = document.getElementById('melhoriasList');
+            if (insights.melhorias.length > 0) {
+                melhoriasList.innerHTML = insights.melhorias.map(mel => 
+                    `<span class="badge melhoria-badge insight-badge">${mel}</span>`
+                ).join('');
+            } else {
+                melhoriasList.innerHTML = '<span class="text-muted">Nenhuma melhoria necessária</span>';
+            }
+            
+            // Atualizar top origens
+            const topOrigensCliente = document.getElementById('topOrigensCliente');
+            topOrigensCliente.innerHTML = insights.top_origens.map((origem, index) => `
+                <div class="d-flex justify-content-between align-items-center py-2">
+                    <div class="d-flex align-items-center">
+                        <span class="badge bg-primary me-2">${index + 1}</span>
+                        <span>${origem.regiao}</span>
+                    </div>
+                    <div class="text-end">
+                        <div class="fw-bold">${origem.embarques.toLocaleString('pt-BR')}</div>
+                        <small class="text-muted">${origem.percentual}%</small>
+                    </div>
+                </div>
+            `).join('');
+            
+            // Atualizar top destinos
+            const topDestinosCliente = document.getElementById('topDestinosCliente');
+            topDestinosCliente.innerHTML = insights.top_destinos.map((destino, index) => `
+                <div class="d-flex justify-content-between align-items-center py-2">
+                    <div class="d-flex align-items-center">
+                        <span class="badge bg-info me-2">${index + 1}</span>
+                        <span>${destino.regiao}</span>
+                    </div>
+                    <div class="text-end">
+                        <div class="fw-bold">${destino.embarques.toLocaleString('pt-BR')}</div>
+                        <small class="text-muted">${destino.percentual}%</small>
+                    </div>
+                </div>
+            `).join('');
+            
+            // Mostrar seção
+            document.getElementById('analiseDetalhada').classList.remove('d-none');
+        }
+
+        // Obter classe CSS para score
+        function getScoreClass(score) {
+            if (score >= 80) return 'score-excelente';
+            if (score >= 60) return 'score-bom';
+            if (score >= 40) return 'score-regular';
+            return 'score-ruim';
+        }
+
+        // Criar gráfico de distribuição
+        function criarGraficoDistribuicao(distribuicaoClientes) {
+            const ctx = document.getElementById('distribuicaoChart').getContext('2d');
+            
+            if (distribuicaoChart) {
+                distribuicaoChart.destroy();
+            }
+
+            const labels = distribuicaoClientes.map(item => item.cliente);
+            const data = distribuicaoClientes.map(item => item.percentual);
+            const backgroundColor = distribuicaoClientes.map((_, index) => {
+                const colors = ['#007bff', '#28a745', '#ffc107', '#dc3545', '#6f42c1', '#fd7e14', '#20c997', '#e83e8c'];
+                return colors[index % colors.length];
+            });
+
+            distribuicaoChart = new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        data: data,
+                        backgroundColor: backgroundColor,
+                        borderWidth: 2,
+                        borderColor: '#fff'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'right',
+                        },
+                        title: {
+                            display: true,
+                            text: 'Distribuição de Volume por Cliente (%)'
+                        }
+                    }
+                }
+            });
+        }
+    </script>
+</body>
+</html>

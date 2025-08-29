@@ -31,13 +31,19 @@
 <!-- Filtros Avançados -->
 <div class="row mb-4" id="filtrosSection" style="display: none;">
     <div class="col-12">
-        <div class="card border-0 shadow-sm">
+        <div class="card border-0 shadow-sm filtros-section">
             <div class="card-header bg-transparent border-0">
                 <h5 class="card-title mb-0">
                     <i class="bi bi-funnel"></i> Filtros Avançados
                 </h5>
             </div>
             <div class="card-body">
+                <!-- Indicador de Filtros Ativos -->
+                <div id="filtrosAtivos" class="filtros-ativos d-none">
+                    <h6 class="mb-2"><i class="bi bi-check-circle"></i> Filtros Ativos:</h6>
+                    <div id="filtrosAtivosList"></div>
+                </div>
+                
                 <div class="row">
                     <div class="col-md-3 mb-3">
                         <label for="dataInicio" class="form-label">Data Início</label>
@@ -52,32 +58,39 @@
                         <select class="form-select" id="origemFilter" multiple>
                             <!-- Preenchido via JavaScript -->
                         </select>
+                        <small class="form-text text-muted">Selecione uma ou mais origens</small>
                     </div>
-                                         <div class="col-md-3 mb-3">
-                         <label for="destinoFilter" class="form-label">Destino</label>
-                         <select class="form-select" id="destinoFilter" multiple>
-                             <!-- Preenchido via JavaScript -->
-                         </select>
-                     </div>
-                     <div class="col-md-3 mb-3">
-                         <label for="limitFilter" class="form-label">Limite de Rankings</label>
-                         <select class="form-select" id="limitFilter">
-                             <option value="5" selected>Top 5</option>
-                             <option value="10">Top 10</option>
-                             <option value="15">Top 15</option>
-                             <option value="20">Top 20</option>
-                             <option value="50">Top 50</option>
-                         </select>
-                     </div>
+                    <div class="col-md-3 mb-3">
+                        <label for="destinoFilter" class="form-label">Destino</label>
+                        <select class="form-select" id="destinoFilter" multiple>
+                            <!-- Preenchido via JavaScript -->
+                        </select>
+                        <small class="form-text text-muted">Selecione um ou mais destinos</small>
+                    </div>
                 </div>
                 <div class="row">
-                    <div class="col-12">
-                        <button class="btn btn-primary me-2" onclick="aplicarFiltros()">
-                            <i class="bi bi-check-circle"></i> Aplicar Filtros
-                        </button>
-                        <button class="btn btn-outline-secondary" onclick="resetarFiltros()">
-                            <i class="bi bi-arrow-clockwise"></i> Resetar
-                        </button>
+                    <div class="col-md-3 mb-3">
+                        <label for="limitFilter" class="form-label">Limite de Rankings</label>
+                        <select class="form-select" id="limitFilter">
+                            <option value="5" selected>Top 5</option>
+                            <option value="10">Top 10</option>
+                            <option value="15">Top 15</option>
+                            <option value="20">Top 20</option>
+                            <option value="50">Top 50</option>
+                        </select>
+                    </div>
+                    <div class="col-md-9 mb-3 d-flex align-items-end">
+                        <div class="d-flex gap-2">
+                            <button class="btn btn-primary" onclick="aplicarFiltros()">
+                                <i class="bi bi-check-circle"></i> Aplicar Filtros
+                            </button>
+                            <button class="btn btn-outline-secondary" onclick="resetarFiltros()">
+                                <i class="bi bi-arrow-clockwise"></i> Resetar
+                            </button>
+                            <button class="btn btn-outline-info" onclick="mostrarFiltrosAtivos()">
+                                <i class="bi bi-eye"></i> Ver Filtros
+                            </button>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -702,14 +715,86 @@ function initializeSelect2() {
     $('#origemFilter').select2({
         placeholder: 'Selecione as origens',
         allowClear: true,
-        width: '100%'
+        width: '100%',
+        closeOnSelect: false,
+        selectionCssClass: 'select2--large',
+        dropdownCssClass: 'select2--large'
     });
     
     $('#destinoFilter').select2({
         placeholder: 'Selecione os destinos',
         allowClear: true,
-        width: '100%'
+        width: '100%',
+        closeOnSelect: false,
+        selectionCssClass: 'select2--large',
+        dropdownCssClass: 'select2--large'
     });
+    
+    // Adicionar event listeners para mudanças nos filtros
+    $('#origemFilter').on('change', function() {
+        atualizarIndicadorFiltros();
+    });
+    
+    $('#destinoFilter').on('change', function() {
+        atualizarIndicadorFiltros();
+    });
+    
+    // Event listeners para campos de data
+    document.getElementById('dataInicio').addEventListener('change', atualizarIndicadorFiltros);
+    document.getElementById('dataFim').addEventListener('change', atualizarIndicadorFiltros);
+}
+
+// Atualizar indicador de filtros
+function atualizarIndicadorFiltros() {
+    const filtrosAtivos = document.getElementById('filtrosAtivos');
+    const filtrosAtivosList = document.getElementById('filtrosAtivosList');
+    
+    const dataInicio = document.getElementById('dataInicio').value;
+    const dataFim = document.getElementById('dataFim').value;
+    const origens = $('#origemFilter').val();
+    const destinos = $('#destinoFilter').val();
+    
+    // Sincronizar currentFilters com os valores atuais dos campos
+    currentFilters = {
+        data_inicio: dataInicio,
+        data_fim: dataFim,
+        origens: origens,
+        destinos: destinos,
+        limit: document.getElementById('limitFilter').value
+    };
+    
+    let temFiltros = false;
+    let filtrosTexto = [];
+    
+    if (dataInicio || dataFim) {
+        temFiltros = true;
+        if (dataInicio && dataFim) {
+            filtrosTexto.push(`<span class="badge bg-primary">Período: ${dataInicio} - ${dataFim}</span>`);
+        } else if (dataInicio) {
+            filtrosTexto.push(`<span class="badge bg-primary">A partir de: ${dataInicio}</span>`);
+        } else if (dataFim) {
+            filtrosTexto.push(`<span class="badge bg-primary">Até: ${dataFim}</span>`);
+        }
+    }
+    
+    if (origens && origens.length > 0) {
+        temFiltros = true;
+        filtrosTexto.push(`<span class="badge bg-success">Origem: ${origens.length} selecionada(s)</span>`);
+    }
+    
+    if (destinos && destinos.length > 0) {
+        temFiltros = true;
+        filtrosTexto.push(`<span class="badge bg-info">Destino: ${destinos.length} selecionado(s)</span>`);
+    }
+    
+    if (temFiltros) {
+        filtrosAtivosList.innerHTML = filtrosTexto.join(' ');
+        filtrosAtivos.classList.remove('d-none');
+    } else {
+        filtrosAtivos.classList.add('d-none');
+    }
+    
+    console.log('Filtros sincronizados:', currentFilters);
 }
 
 // Mostrar seção de filtros
@@ -769,15 +854,40 @@ function showFiltrosSection() {
 function aplicarFiltros() {
     console.log('Aplicando filtros...');
     
+    // Validar filtros
+    const dataInicio = document.getElementById('dataInicio').value;
+    const dataFim = document.getElementById('dataFim').value;
+    const origens = $('#origemFilter').val();
+    const destinos = $('#destinoFilter').val();
+    
+    // Validação de datas
+    if (dataInicio && dataFim && dataInicio > dataFim) {
+        showToast('Data de início não pode ser maior que data de fim!', 'warning');
+        return;
+    }
+    
+    // Validação de origens e destinos
+    if (origens && origens.length > 0 && destinos && destinos.length > 0) {
+        // Verificar se há sobreposição entre origens e destinos selecionados
+        const sobreposicao = origens.filter(origem => destinos.includes(origem));
+        if (sobreposicao.length > 0) {
+            showToast(`Atenção: ${sobreposicao.join(', ')} aparece como origem e destino!`, 'info');
+        }
+    }
+    
+    // Atualizar currentFilters com valores mais recentes
     currentFilters = {
-        data_inicio: document.getElementById('dataInicio').value,
-        data_fim: document.getElementById('dataFim').value,
-        origens: $('#origemFilter').val(),
-        destinos: $('#destinoFilter').val(),
+        data_inicio: dataInicio,
+        data_fim: dataFim,
+        origens: origens,
+        destinos: destinos,
         limit: document.getElementById('limitFilter').value
     };
     
     console.log('Filtros aplicados:', currentFilters);
+    
+    // Atualizar indicador de filtros
+    atualizarIndicadorFiltros();
     
     // Atualizar estatísticas, gráficos e dados
     updateStatsWithFilters();
@@ -786,6 +896,35 @@ function aplicarFiltros() {
     
     // Mostrar filtros aplicados
     showToast('Filtros aplicados com sucesso!', 'success');
+    
+    // Mostrar resumo dos filtros aplicados
+    mostrarResumoFiltros();
+}
+
+// Mostrar resumo dos filtros aplicados
+function mostrarResumoFiltros() {
+    const filtrosAtivos = document.getElementById('filtrosAtivos');
+    if (!filtrosAtivos.classList.contains('d-none')) {
+        const filtrosAtivosList = document.getElementById('filtrosAtivosList');
+        const dataInicio = currentFilters.data_inicio || 'Todos';
+        const dataFim = currentFilters.data_fim || 'Todos';
+        const origens = currentFilters.origens && currentFilters.origens.length > 0 ? currentFilters.origens.join(', ') : 'Todas';
+        const destinos = currentFilters.destinos && currentFilters.destinos.length > 0 ? currentFilters.destinos.join(', ') : 'Todos';
+        const limit = currentFilters.limit || '5';
+        
+        filtrosAtivosList.innerHTML = `
+            <div class="row">
+                <div class="col-md-6">
+                    <span class="badge bg-primary mb-1">Período: ${dataInicio} - ${dataFim}</span><br>
+                    <span class="badge bg-success mb-1">Origem: ${origens}</span>
+                </div>
+                <div class="col-md-6">
+                    <span class="badge bg-info mb-1">Destino: ${destinos}</span><br>
+                    <span class="badge bg-warning mb-1">Ranking: Top ${limit}</span>
+                </div>
+            </div>
+        `;
+    }
 }
 
 // Resetar filtros
@@ -801,6 +940,12 @@ function resetarFiltros() {
     currentFilters = {};
     
     console.log('Filtros resetados:', currentFilters);
+    
+    // Atualizar indicador de filtros
+    atualizarIndicadorFiltros();
+    
+    // Ocultar indicador de filtros ativos
+    document.getElementById('filtrosAtivos').classList.add('d-none');
     
     // Recarregar dados sem filtros
     checkDataStatus(); // Isso vai recarregar as estatísticas originais
@@ -908,6 +1053,29 @@ function createToastContainer() {
     container.style.zIndex = '9999';
     document.body.appendChild(container);
     return container;
+}
+
+// Mostrar filtros ativos
+function mostrarFiltrosAtivos() {
+    const filtrosAtivos = document.getElementById('filtrosAtivos');
+    const filtrosAtivosList = document.getElementById('filtrosAtivosList');
+    const filtrosSection = document.getElementById('filtrosSection');
+
+    if (filtrosAtivos.classList.contains('d-none')) {
+        filtrosAtivos.classList.remove('d-none');
+        filtrosSection.style.display = 'none'; // Ocultar a seção de filtros avançados
+        filtrosAtivosList.innerHTML = `
+            <p class="mb-1"><strong>Data:</strong> ${currentFilters.data_inicio ? `${currentFilters.data_inicio} - ${currentFilters.data_fim}` : 'Todos os períodos'}</p>
+            <p class="mb-1"><strong>Origem:</strong> ${currentFilters.origens && currentFilters.origens.length > 0 ? currentFilters.origens.join(', ') : 'Todas'}</p>
+            <p class="mb-1"><strong>Destino:</strong> ${currentFilters.destinos && currentFilters.destinos.length > 0 ? currentFilters.destinos.join(', ') : 'Todos'}</p>
+            <p class="mb-1"><strong>Limite de Rankings:</strong> ${currentFilters.limit || '5'}</p>
+        `;
+        filtrosAtivos.classList.add('d-block'); // Adicionar classe para mostrar
+    } else {
+        filtrosAtivos.classList.add('d-none');
+        filtrosSection.style.display = 'block'; // Mostrar a seção de filtros avançados
+        filtrosAtivos.classList.remove('d-block'); // Remover classe para ocultar
+    }
 }
 </script>
 {% endblock %}

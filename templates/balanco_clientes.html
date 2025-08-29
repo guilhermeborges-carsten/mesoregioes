@@ -1,0 +1,703 @@
+{% extends "base.html" %}
+
+{% block title %}Balanço por Clientes - Dashboard Logístico{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h1 class="h2 text-primary">
+                <i class="bi bi-building"></i> Balanço de Embarques por Cliente
+            </h1>
+            <div class="d-flex gap-2">
+                <button class="btn btn-outline-primary" onclick="refreshBalanco()">
+                    <i class="bi bi-arrow-clockwise"></i> Atualizar
+                </button>
+                <button class="btn btn-success" onclick="exportarBalanco()">
+                    <i class="bi bi-download"></i> Exportar
+                </button>
+            </div>
+        </div>
+        
+        <!-- Alert para dados não carregados -->
+        <div id="noDataAlert" class="alert alert-info d-none">
+            <i class="bi bi-info-circle"></i>
+            <strong>Nenhum dado carregado.</strong> 
+            Use o menu "Upload" para carregar um arquivo Excel com dados de embarques.
+        </div>
+    </div>
+</div>
+
+<!-- Filtros -->
+<div class="row mb-4" id="filtrosSection" style="display: none;">
+    <div class="col-12">
+        <div class="card border-0 shadow-sm filtros-section">
+            <div class="card-header bg-transparent border-0">
+                <h5 class="card-title mb-0">
+                    <i class="bi bi-funnel"></i> Filtros do Balanço por Clientes
+                </h5>
+            </div>
+            <div class="card-body">
+                <!-- Indicador de Filtros Ativos -->
+                <div id="filtrosAtivos" class="filtros-ativos d-none">
+                    <h6 class="mb-2"><i class="bi bi-check-circle"></i> Filtros Ativos:</h6>
+                    <div id="filtrosAtivosList"></div>
+                </div>
+                
+                <div class="row">
+                    <div class="col-md-2 mb-3">
+                        <label for="dataInicio" class="form-label">Data Início</label>
+                        <input type="month" class="form-control" id="dataInicio">
+                    </div>
+                    <div class="col-md-2 mb-3">
+                        <label for="dataFim" class="form-label">Data Fim</label>
+                        <input type="month" class="form-control" id="dataFim">
+                    </div>
+                    <div class="col-md-2 mb-3">
+                        <label for="origemFilter" class="form-label">Origem</label>
+                        <select class="form-select" id="origemFilter" multiple>
+                            <!-- Preenchido via JavaScript -->
+                        </select>
+                        <small class="form-text text-muted">Selecione uma ou mais origens</small>
+                    </div>
+                    <div class="col-md-2 mb-3">
+                        <label for="destinoFilter" class="form-label">Destino</label>
+                        <select class="form-select" id="destinoFilter" multiple>
+                            <!-- Preenchido via JavaScript -->
+                        </select>
+                        <small class="form-text text-muted">Selecione um ou mais destinos</small>
+                    </div>
+                    <div class="col-md-2 mb-3">
+                        <label for="limit" class="form-label">Limite de Registros</label>
+                        <select class="form-select" id="limit">
+                            <option value="20">Top 20</option>
+                            <option value="50">Top 50</option>
+                            <option value="100">Top 100</option>
+                            <option value="0" selected>Todos</option>
+                        </select>
+                    </div>
+                    <div class="col-md-2 mb-3">
+                        <label for="classificacaoFilter" class="form-label">Classificação</label>
+                        <select class="form-select" id="classificacaoFilter">
+                            <option value="">Todas</option>
+                            <option value="produtora">Apenas Produtoras</option>
+                            <option value="consumidora">Apenas Consumidoras</option>
+                            <option value="equilibrada">Apenas Equilibradas</option>
+                        </select>
+                    </div>
+                    <div class="col-md-2 mb-3">
+                        <label for="clienteFilter" class="form-label">Cliente Específico</label>
+                        <select class="form-select" id="clienteFilter">
+                            <option value="">Todos os Clientes</option>
+                            <!-- Preenchido via JavaScript -->
+                        </select>
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col-12">
+                        <div class="d-flex gap-2">
+                            <button class="btn btn-primary" onclick="aplicarFiltros()">
+                                <i class="bi bi-check-circle"></i> Aplicar Filtros
+                            </button>
+                            <button class="btn btn-outline-secondary" onclick="resetarFiltros()">
+                                <i class="bi bi-arrow-clockwise"></i> Resetar
+                            </button>
+                            <button class="btn btn-outline-info" onclick="mostrarFiltrosAtivos()">
+                                <i class="bi bi-eye"></i> Ver Filtros
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Resumo Geral -->
+<div class="row mb-4" id="resumoSection" style="display: none;">
+    <div class="col-12">
+        <div class="card border-0 shadow-sm">
+            <div class="card-header bg-transparent border-0">
+                <h5 class="card-title mb-0">
+                    <i class="bi bi-graph-up"></i> Resumo Geral por Clientes
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="row text-center">
+                    <div class="col-md-2">
+                        <h4 class="text-primary" id="totalClientes">-</h4>
+                        <small class="text-muted">Total de Clientes</small>
+                    </div>
+                    <div class="col-md-2">
+                        <h4 class="text-success" id="totalMesorregioes">-</h4>
+                        <small class="text-muted">Total de Mesorregiões</small>
+                    </div>
+                    <div class="col-md-2">
+                        <h4 class="text-info" id="totalProdutoras">-</h4>
+                        <small class="text-muted">Regiões Produtoras</small>
+                    </div>
+                    <div class="col-md-2">
+                        <h4 class="text-warning" id="totalConsumidoras">-</h4>
+                        <small class="text-muted">Regiões Consumidoras</small>
+                    </div>
+                    <div class="col-md-2">
+                        <h4 class="text-secondary" id="totalEquilibradas">-</h4>
+                        <small class="text-muted">Regiões Equilibradas</small>
+                    </div>
+                    <div class="col-md-2">
+                        <h4 class="text-dark" id="totalMovimentado">-</h4>
+                        <small class="text-muted">Total Movimentado</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Resumo por Cliente -->
+<div class="row mb-4" id="resumoClientesSection" style="display: none;">
+    <div class="col-12">
+        <div class="card border-0 shadow-sm">
+            <div class="card-header bg-transparent border-0">
+                <h5 class="card-title mb-0">
+                    <i class="bi bi-table"></i> Resumo por Cliente
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-striped table-hover" id="resumoClientesTable">
+                        <thead class="table-dark">
+                            <tr>
+                                <th scope="col">Cliente</th>
+                                <th scope="col" class="text-center">Total Mesorregiões</th>
+                                <th scope="col" class="text-end">Embarques Origem</th>
+                                <th scope="col" class="text-end">Embarques Destino</th>
+                                <th scope="col" class="text-end">Total Movimentado</th>
+                                <th scope="col" class="text-end">Saldo Total</th>
+                                <th scope="col" class="text-center">Regiões Produtoras</th>
+                                <th scope="col" class="text-center">Regiões Consumidoras</th>
+                            </tr>
+                        </thead>
+                        <tbody id="resumoClientesBody">
+                            <!-- Preenchido via JavaScript -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Tabela Detalhada -->
+<div class="row">
+    <div class="col-12">
+        <div class="card border-0 shadow-sm">
+            <div class="card-header bg-transparent border-0">
+                <h5 class="card-title mb-0">
+                    <i class="bi bi-list-ul"></i> Detalhamento por Cliente e Mesorregião
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-striped table-hover" id="balancoTable">
+                        <thead class="table-dark">
+                            <tr>
+                                <th scope="col">Cliente</th>
+                                <th scope="col">Mesorregião</th>
+                                <th scope="col" class="text-end">Embarques Origem</th>
+                                <th scope="col" class="text-end">Embarques Destino</th>
+                                <th scope="col" class="text-end">Saldo</th>
+                                <th scope="col" class="text-end">Total Movimentado</th>
+                                <th scope="col" class="text-end">% Origem</th>
+                                <th scope="col" class="text-end">% Destino</th>
+                                <th scope="col" class="text-center">Classificação</th>
+                                <th scope="col" class="text-center">Ações</th>
+                            </tr>
+                        </thead>
+                        <tbody id="balancoBody">
+                            <tr>
+                                <td colspan="10" class="text-center text-muted py-5">
+                                    <i class="bi bi-arrow-clockwise" style="font-size: 2rem;"></i>
+                                    <p class="mt-2">Carregando dados...</p>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal de Detalhes -->
+<div class="modal fade" id="detailsModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Detalhes do Cliente e Mesorregião</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="modalBody">
+                <!-- Preenchido via JavaScript -->
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+.filtros-ativos {
+    background-color: #e3f2fd;
+    border: 1px solid #2196f3;
+    border-radius: 8px;
+    padding: 15px;
+    margin-bottom: 20px;
+}
+
+.filtros-ativos .badge {
+    margin-right: 8px;
+    margin-bottom: 8px;
+}
+
+.table th {
+    font-size: 0.9rem;
+    font-weight: 600;
+}
+
+.table td {
+    font-size: 0.9rem;
+    vertical-align: middle;
+}
+
+.badge-produtora {
+    background-color: #28a745;
+}
+
+.badge-consumidora {
+    background-color: #dc3545;
+}
+
+.badge-equilibrada {
+    background-color: #6c757d;
+}
+
+.saldo-positivo {
+    color: #28a745;
+    font-weight: bold;
+}
+
+.saldo-negativo {
+    color: #dc3545;
+    font-weight: bold;
+}
+
+.saldo-zero {
+    color: #6c757d;
+    font-weight: bold;
+}
+</style>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+let balancoData = [];
+let resumoClientesData = [];
+let currentFilters = {};
+
+// Inicializar página
+document.addEventListener('DOMContentLoaded', function() {
+    checkDataStatus();
+    initializeSelect2();
+    initializeEventListeners();
+});
+
+// Verificar status dos dados
+function checkDataStatus() {
+    fetch('/api/stats')
+        .then(response => response.json())
+        .then(data => {
+            if (data.error) {
+                showNoDataAlert();
+            } else {
+                hideNoDataAlert();
+                showFiltrosSection();
+                showResumoSection();
+                showResumoClientesSection();
+                loadBalancoData();
+            }
+        })
+        .catch(error => {
+            console.error('Erro ao verificar dados:', error);
+            showNoDataAlert();
+        });
+}
+
+// Inicializar Select2
+function initializeSelect2() {
+    $('#origemFilter, #destinoFilter').select2({
+        placeholder: 'Selecione...',
+        allowClear: true,
+        width: '100%'
+    });
+}
+
+// Inicializar event listeners
+function initializeEventListeners() {
+    // Event listeners para filtros
+    document.getElementById('dataInicio').addEventListener('change', function() {
+        if (this.value && document.getElementById('dataFim').value) {
+            if (this.value > document.getElementById('dataFim').value) {
+                document.getElementById('dataFim').value = this.value;
+            }
+        }
+    });
+    
+    document.getElementById('dataFim').addEventListener('change', function() {
+        if (this.value && document.getElementById('dataInicio').value) {
+            if (this.value < document.getElementById('dataInicio').value) {
+                document.getElementById('dataInicio').value = this.value;
+            }
+        }
+    });
+}
+
+// Mostrar seção de filtros
+function showFiltrosSection() {
+    document.getElementById('filtrosSection').style.display = 'block';
+    loadMesorregioes();
+    loadClientes();
+}
+
+// Mostrar seção de resumo
+function showResumoSection() {
+    document.getElementById('resumoSection').style.display = 'block';
+}
+
+// Mostrar seção de resumo por clientes
+function showResumoClientesSection() {
+    document.getElementById('resumoClientesSection').style.display = 'block';
+}
+
+// Carregar mesorregiões disponíveis
+function loadMesorregioes() {
+    fetch('/api/mesorregioes')
+        .then(response => response.json())
+        .then(data => {
+            if (data.error) return;
+            
+            // Preencher select de origens
+            const origemSelect = document.getElementById('origemFilter');
+            origemSelect.innerHTML = '<option value=""></option>';
+            data.origens.forEach(origem => {
+                const option = document.createElement('option');
+                option.value = origem;
+                option.textContent = origem;
+                origemSelect.appendChild(option);
+            });
+            
+            // Preencher select de destinos
+            const destinoSelect = document.getElementById('destinoFilter');
+            destinoSelect.innerHTML = '<option value=""></option>';
+            data.destinos.forEach(destino => {
+                const option = document.createElement('option');
+                option.value = destino;
+                option.textContent = destino;
+                destinoSelect.appendChild(option);
+            });
+            
+            // Atualizar Select2
+            $('#origemFilter').trigger('change');
+            $('#destinoFilter').trigger('change');
+        });
+}
+
+// Carregar clientes únicos para o filtro
+function loadClientes() {
+    // Usar a API específica para clientes
+    fetch('/api/clientes')
+        .then(response => response.json())
+        .then(data => {
+            if (data.error) {
+                console.error('Erro ao carregar clientes:', data.error);
+                return;
+            }
+            
+            console.log('Clientes encontrados:', data.clientes); // Debug
+            console.log('Total de clientes:', data.total); // Debug
+            
+            // Preencher select de clientes
+            const clienteSelect = document.getElementById('clienteFilter');
+            clienteSelect.innerHTML = '<option value="">Todos os Clientes</option>';
+            data.clientes.forEach(cliente => {
+                const option = document.createElement('option');
+                option.value = cliente;
+                option.textContent = cliente;
+                clienteSelect.appendChild(option);
+            });
+        })
+        .catch(error => {
+            console.error('Erro ao carregar clientes:', error);
+        });
+}
+
+// Carregar dados do balanço
+function loadBalancoData() {
+    const params = new URLSearchParams(currentFilters);
+    
+    fetch(`/api/balanco_clientes?${params.toString()}`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.error) {
+                console.error('Erro ao carregar balanço:', data.error);
+                return;
+            }
+            
+            balancoData = data.data;
+            resumoClientesData = data.resumo_clientes;
+            
+            updateResumoGeral(data.resumo_geral);
+            updateResumoClientes();
+            updateBalancoTable();
+        })
+        .catch(error => {
+            console.error('Erro ao carregar balanço:', error);
+        });
+}
+
+// Atualizar resumo geral
+function updateResumoGeral(resumo) {
+    document.getElementById('totalClientes').textContent = resumo.total_clientes.toLocaleString('pt-BR');
+    document.getElementById('totalMesorregioes').textContent = resumo.total_mesorregioes.toLocaleString('pt-BR');
+    document.getElementById('totalProdutoras').textContent = resumo.produtoras.toLocaleString('pt-BR');
+    document.getElementById('totalConsumidoras').textContent = resumo.consumidoras.toLocaleString('pt-BR');
+    document.getElementById('totalEquilibradas').textContent = resumo.equilibradas.toLocaleString('pt-BR');
+    
+    // Calcular total movimentado
+    const totalMovimentado = balancoData.reduce((sum, row) => sum + row.TOTAL_MOVIMENTADO, 0);
+    document.getElementById('totalMovimentado').textContent = totalMovimentado.toLocaleString('pt-BR');
+}
+
+// Atualizar resumo por clientes
+function updateResumoClientes() {
+    const tbody = document.getElementById('resumoClientesBody');
+    
+    if (!resumoClientesData || resumoClientesData.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="8" class="text-center text-muted">Nenhum dado encontrado</td></tr>';
+        return;
+    }
+    
+    const html = resumoClientesData.map(row => `
+        <tr>
+            <td><strong>${row.CLIENTE}</strong></td>
+            <td class="text-center">${row.TOTAL_MESORREGIÕES}</td>
+            <td class="text-end">${row.TOTAL_EMBARQUES_ORIGEM.toLocaleString('pt-BR')}</td>
+            <td class="text-end">${row.TOTAL_EMBARQUES_DESTINO.toLocaleString('pt-BR')}</td>
+            <td class="text-end fw-bold">${row.TOTAL_MOVIMENTADO.toLocaleString('pt-BR')}</td>
+            <td class="text-end ${row.SALDO_TOTAL > 0 ? 'saldo-positivo' : row.SALDO_TOTAL < 0 ? 'saldo-negativo' : 'saldo-zero'}">
+                ${row.SALDO_TOTAL > 0 ? '+' : ''}${row.SALDO_TOTAL.toLocaleString('pt-BR')}
+            </td>
+            <td class="text-center">
+                <span class="badge badge-produtora">${row.MESORREGIÕES_PRODUTORAS}</span>
+            </td>
+            <td class="text-center">
+                <span class="badge badge-consumidora">${row.MESORREGIÕES_CONSUMIDORAS}</span>
+            </td>
+        </tr>
+    `).join('');
+    
+    tbody.innerHTML = html;
+}
+
+// Atualizar tabela de balanço
+function updateBalancoTable() {
+    const tbody = document.getElementById('balancoBody');
+    
+    if (!balancoData || balancoData.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="10" class="text-center text-muted">Nenhum dado encontrado com os filtros aplicados</td></tr>';
+        return;
+    }
+    
+    const html = balancoData.map((row, index) => {
+        const saldoClass = row.SALDO > 0 ? 'saldo-positivo' : row.SALDO < 0 ? 'saldo-negativo' : 'saldo-zero';
+        const saldoPrefix = row.SALDO > 0 ? '+' : '';
+        
+        return `
+            <tr>
+                <td><strong>${row.CLIENTE}</strong></td>
+                <td>${row.MESORREGIÃO}</td>
+                <td class="text-end">${row.EMBARQUES_ORIGEM.toLocaleString('pt-BR')}</td>
+                <td class="text-end">${row.EMBARQUES_DESTINO.toLocaleString('pt-BR')}</td>
+                <td class="text-end fw-bold ${saldoClass}">${saldoPrefix}${row.SALDO.toLocaleString('pt-BR')}</td>
+                <td class="text-end">${row.TOTAL_MOVIMENTADO.toLocaleString('pt-BR')}</td>
+                <td class="text-end">${row.PERCENTUAL_ORIGEM}%</td>
+                <td class="text-end">${row.PERCENTUAL_DESTINO}%</td>
+                <td class="text-center">
+                    <span class="badge ${row.CLASSIFICACAO.includes('Produtora') ? 'badge-produtora' : row.CLASSIFICACAO.includes('Consumidora') ? 'badge-consumidora' : 'badge-equilibrada'}">
+                        ${row.CLASSIFICACAO.split(' ')[0]}
+                    </span>
+                </td>
+                <td class="text-center">
+                    <button class="btn btn-sm btn-outline-primary" onclick="showDetails(${index})">
+                        <i class="bi bi-eye"></i>
+                    </button>
+                </td>
+            </tr>
+        `;
+    }).join('');
+    
+    tbody.innerHTML = html;
+}
+
+// Aplicar filtros
+function aplicarFiltros() {
+    currentFilters = {
+        data_inicio: document.getElementById('dataInicio').value,
+        data_fim: document.getElementById('dataFim').value,
+        origens: $('#origemFilter').val(),
+        destinos: $('#destinoFilter').val(),
+        limit: document.getElementById('limit').value,
+        classificacao: document.getElementById('classificacaoFilter').value,
+        cliente: document.getElementById('clienteFilter').value
+    };
+    
+    // Remover filtros vazios
+    Object.keys(currentFilters).forEach(key => {
+        if (!currentFilters[key] || (Array.isArray(currentFilters[key]) && currentFilters[key].length === 0)) {
+            delete currentFilters[key];
+        }
+    });
+    
+    loadBalancoData();
+    mostrarFiltrosAtivos();
+}
+
+// Resetar filtros
+function resetarFiltros() {
+    document.getElementById('dataInicio').value = '';
+    document.getElementById('dataFim').value = '';
+    $('#origemFilter').val(null).trigger('change');
+    $('#destinoFilter').val(null).trigger('change');
+    document.getElementById('limit').value = '0';
+    document.getElementById('classificacaoFilter').value = '';
+    document.getElementById('clienteFilter').value = '';
+    
+    currentFilters = {};
+    loadBalancoData();
+    document.getElementById('filtrosAtivos').classList.add('d-none');
+}
+
+// Mostrar filtros ativos
+function mostrarFiltrosAtivos() {
+    const filtrosAtivos = document.getElementById('filtrosAtivos');
+    const filtrosAtivosList = document.getElementById('filtrosAtivosList');
+    
+    if (Object.keys(currentFilters).length === 0) {
+        filtrosAtivos.classList.add('d-none');
+        return;
+    }
+    
+    let html = '';
+    
+    if (currentFilters.data_inicio) {
+        html += `<span class="badge bg-primary">Data Início: ${currentFilters.data_inicio}</span>`;
+    }
+    if (currentFilters.data_fim) {
+        html += `<span class="badge bg-primary">Data Fim: ${currentFilters.data_fim}</span>`;
+    }
+    if (currentFilters.origens && currentFilters.origens.length > 0) {
+        currentFilters.origens.forEach(origem => {
+            html += `<span class="badge bg-success">Origem: ${origem}</span>`;
+        });
+    }
+    if (currentFilters.destinos && currentFilters.destinos.length > 0) {
+        currentFilters.destinos.forEach(destino => {
+            html += `<span class="badge bg-info">Destino: ${destino}</span>`;
+        });
+    }
+    if (currentFilters.limit && currentFilters.limit !== '50') {
+        html += `<span class="badge bg-warning">Limite: ${currentFilters.limit}</span>`;
+    }
+    if (currentFilters.classificacao) {
+        const classificacaoText = {
+            'produtora': 'Apenas Produtoras',
+            'consumidora': 'Apenas Consumidoras',
+            'equilibrada': 'Apenas Equilibradas'
+        };
+        html += `<span class="badge bg-secondary">Classificação: ${classificacaoText[currentFilters.classificacao]}</span>`;
+    }
+    if (currentFilters.cliente) {
+        html += `<span class="badge bg-dark">Cliente: ${currentFilters.cliente}</span>`;
+    }
+    
+    filtrosAtivosList.innerHTML = html;
+    filtrosAtivos.classList.remove('d-none');
+}
+
+// Mostrar detalhes
+function showDetails(index) {
+    const row = balancoData[index];
+    const modalBody = document.getElementById('modalBody');
+    
+    modalBody.innerHTML = `
+        <div class="row">
+            <div class="col-md-6">
+                <h6 class="text-primary">Informações do Cliente</h6>
+                <p><strong>Cliente:</strong> ${row.CLIENTE}</p>
+                <p><strong>Mesorregião:</strong> ${row.MESORREGIÃO}</p>
+            </div>
+            <div class="col-md-6">
+                <h6 class="text-success">Classificação</h6>
+                <p><strong>Tipo:</strong> ${row.CLASSIFICACAO}</p>
+                <p><strong>Saldo:</strong> <span class="${row.SALDO > 0 ? 'saldo-positivo' : row.SALDO < 0 ? 'saldo-negativo' : 'saldo-zero'}">${row.SALDO > 0 ? '+' : ''}${row.SALDO.toLocaleString('pt-BR')}</span></p>
+            </div>
+        </div>
+        <hr>
+        <div class="row">
+            <div class="col-md-4">
+                <h6 class="text-info">Embarques Origem</h6>
+                <p><strong>Quantidade:</strong> ${row.EMBARQUES_ORIGEM.toLocaleString('pt-BR')}</p>
+                <p><strong>Percentual:</strong> ${row.PERCENTUAL_ORIGEM}%</p>
+            </div>
+            <div class="col-md-4">
+                <h6 class="text-warning">Embarques Destino</h6>
+                <p><strong>Quantidade:</strong> ${row.EMBARQUES_DESTINO.toLocaleString('pt-BR')}</p>
+                <p><strong>Percentual:</strong> ${row.PERCENTUAL_DESTINO}%</p>
+            </div>
+            <div class="col-md-4">
+                <h6 class="text-secondary">Total Movimentado</h6>
+                <p><strong>Quantidade:</strong> ${row.TOTAL_MOVIMENTADO.toLocaleString('pt-BR')}</p>
+                <p><strong>Saldo:</strong> <span class="${row.SALDO > 0 ? 'saldo-positivo' : row.SALDO < 0 ? 'saldo-negativo' : 'saldo-zero'}">${row.SALDO > 0 ? '+' : ''}${row.SALDO.toLocaleString('pt-BR')}</span></p>
+            </div>
+        </div>
+    `;
+    
+    const modal = new bootstrap.Modal(document.getElementById('detailsModal'));
+    modal.show();
+}
+
+// Atualizar balanço
+function refreshBalanco() {
+    loadBalancoData();
+}
+
+// Exportar balanço
+function exportarBalanco() {
+    const params = new URLSearchParams(currentFilters);
+    window.open(`/api/exportar_balanco_clientes_excel?${params.toString()}`, '_blank');
+}
+
+// Mostrar alerta de dados não carregados
+function showNoDataAlert() {
+    document.getElementById('noDataAlert').classList.remove('d-none');
+}
+
+// Ocultar alerta de dados não carregados
+function hideNoDataAlert() {
+    document.getElementById('noDataAlert').classList.add('d-none');
+}
+</script>
+{% endblock %}
