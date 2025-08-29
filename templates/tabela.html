@@ -151,7 +151,6 @@
                         <thead class="table-dark">
                             <tr>
                                 <th scope="col" class="text-center">#</th>
-                                <th scope="col">Trecho - Frota Própria</th>
                                 <th scope="col">Mesorregião Origem</th>
                                 <th scope="col">Mesorregião Destino</th>
                                 <th scope="col">Mês</th>
@@ -162,7 +161,7 @@
                         </thead>
                         <tbody id="tableBody">
                             <tr>
-                                <td colspan="8" class="text-center text-muted py-5">
+                                <td colspan="7" class="text-center text-muted py-5">
                                     <i class="bi bi-arrow-clockwise" style="font-size: 2rem;"></i>
                                     <p class="mt-2">Carregando dados...</p>
                                 </td>
@@ -170,7 +169,7 @@
                         </tbody>
                         <tfoot id="tableFooter" style="display: none;">
                             <tr class="table-info fw-bold">
-                                <td colspan="5" class="text-end">TOTAL:</td>
+                                <td colspan="4" class="text-end">TOTAL:</td>
                                 <td class="text-end" id="totalEmbarques">-</td>
                                 <td class="text-end">100.0%</td>
                                 <td></td>
@@ -384,7 +383,7 @@ function renderTable() {
     if (!tableData || tableData.length === 0) {
         tbody.innerHTML = `
             <tr>
-                <td colspan="8" class="text-center text-muted py-5">
+                <td colspan="7" class="text-center text-muted py-5">
                     <i class="bi bi-inbox" style="font-size: 2rem;"></i>
                     <p class="mt-2">Nenhum dado encontrado com os filtros aplicados</p>
                 </td>
@@ -402,10 +401,6 @@ function renderTable() {
         return `
             <tr>
                 <td class="text-center">${index + 1}</td>
-                <td>
-                    <span class="badge bg-secondary me-2">T</span>
-                    ${row.trecho}
-                </td>
                 <td>
                     <span class="badge bg-primary me-2">O</span>
                     ${row.origem}
@@ -492,17 +487,12 @@ function showDetails(index) {
     
     modalBody.innerHTML = `
         <div class="row">
-            <div class="col-md-4">
-                <h6 class="text-secondary">Informações do Trecho</h6>
-                <p><strong>Trecho:</strong> ${row.trecho}</p>
-                <p><strong>Tipo:</strong> Frota Própria</p>
-            </div>
-            <div class="col-md-4">
+            <div class="col-md-6">
                 <h6 class="text-primary">Informações da Origem</h6>
                 <p><strong>Mesorregião:</strong> ${row.origem}</p>
                 <p><strong>Tipo:</strong> Origem</p>
             </div>
-            <div class="col-md-4">
+            <div class="col-md-6">
                 <h6 class="text-success">Informações do Destino</h6>
                 <p><strong>Mesorregião:</strong> ${row.destino}</p>
                 <p><strong>Tipo:</strong> Destino</p>

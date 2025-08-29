@@ -119,24 +119,18 @@
                                 Mostrar Destinos
                             </label>
                         </div>
-                        <div class="form-check form-switch">
-                            <input class="form-check-input" type="checkbox" id="enableClustering" checked>
-                            <label class="form-check-label" for="enableClustering">
-                                Agrupar Marcadores
-                            </label>
-                        </div>
                     </div>
-                    <div class="d-flex gap-2">
-                        <button class="btn btn-sm btn-outline-info" onclick="testMapAPI()">
-                            <i class="bi bi-bug"></i> Testar API
-                        </button>
-                        <button class="btn btn-sm btn-outline-primary" onclick="resetMapView()">
-                            <i class="bi bi-arrow-clockwise"></i> Resetar Vista
-                        </button>
-                        <button class="btn btn-sm btn-outline-secondary" onclick="toggleFullscreen()">
-                            <i class="bi bi-arrows-fullscreen"></i> Tela Cheia
-                        </button>
-                    </div>
+                                    <div class="d-flex gap-2">
+                    <button class="btn btn-sm btn-outline-info" onclick="testMapAPI()">
+                        <i class="bi bi-bug"></i> Testar API
+                    </button>
+                    <button class="btn btn-sm btn-outline-primary" onclick="resetMapView()">
+                        <i class="bi bi-arrow-clockwise"></i> Resetar Vista
+                    </button>
+                    <button class="btn btn-sm btn-outline-secondary" onclick="toggleFullscreen()">
+                        <i class="bi bi-arrows-fullscreen"></i> Tela Cheia
+                    </button>
+                </div>
                 </div>
             </div>
         </div>
@@ -208,11 +202,6 @@
 {% endblock %}
 
 {% block extra_js %}
-<!-- Leaflet Clustering Plugin -->
-<script src="https://unpkg.com/leaflet.markercluster@1.4.1/dist/leaflet.markercluster.js"></script>
-<link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.4.1/dist/MarkerCluster.css" />
-<link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.4.1/dist/MarkerCluster.Default.css" />
-
 <script>
 let map;
 let fluxosLayer;
@@ -221,7 +210,6 @@ let destinosLayer;
 let labelsLayer;
 let currentFilters = {};
 let mapData = null;
-let markerClusterGroup;
 
 // Inicializar página
 document.addEventListener('DOMContentLoaded', function() {
@@ -294,10 +282,6 @@ function initializeEventListeners() {
     document.getElementById('showDestinations').addEventListener('change', function() {
         toggleDestinations();
     });
-    
-    document.getElementById('enableClustering').addEventListener('change', function() {
-        toggleClustering();
-    });
 }
 
 // Inicializar mapa
@@ -317,23 +301,12 @@ function initializeMap() {
     destinosLayer = L.layerGroup().addTo(map);
     labelsLayer = L.layerGroup().addTo(map);
     
-    // Criar grupo de clustering
-    markerClusterGroup = L.markerClusterGroup({
-        chunkedLoading: true,
-        maxClusterRadius: 50,
-        spiderfyOnMaxZoom: true,
-        showCoverageOnHover: false,
-        zoomToBoundsOnClick: true,
-        disableClusteringAtZoom: 15
-    });
-    
     // Adicionar controle de layers
     const overlays = {
         "Fluxos": fluxosLayer,
         "Origens": origensLayer,
         "Destinos": destinosLayer,
-        "Rótulos": labelsLayer,
-        "Agrupamento": markerClusterGroup
+        "Rótulos": labelsLayer
     };
     
     L.control.layers(null, overlays).addTo(map);
@@ -418,7 +391,6 @@ function renderMap(data) {
     origensLayer.clearLayers();
     destinosLayer.clearLayers();
     labelsLayer.clearLayers();
-    markerClusterGroup.clearLayers();
     
     if (!data.fluxos || data.fluxos.length === 0) {
         console.warn('Nenhum fluxo para renderizar');
@@ -434,9 +406,6 @@ function renderMap(data) {
     
     let fluxosRenderizados = 0;
     let fluxosSemCoordenadas = 0;
-    
-    // Agrupar mesorregiões por coordenadas para evitar duplicatas
-    const mesorregioesCoords = new Map();
     
     data.fluxos.forEach((fluxo, index) => {
         const origem = fluxo['MESORREGIÃO - ORIGEM'];
@@ -478,12 +447,57 @@ function renderMap(data) {
                 </div>
             `);
             
-            // Adicionar mesorregiões ao mapa (evitando duplicatas)
-            if (!mesorregioesCoords.has(origem)) {
-                mesorregioesCoords.set(origem, origemCoords);
-            }
-            if (!mesorregioesCoords.has(destino)) {
-                mesorregioesCoords.set(destino, destinoCoords);
+            // Adicionar marcador de origem
+            const origemMarker = L.circleMarker(origemCoords, {
+                radius: 8,
+                fillColor: '#007bff',
+                color: '#fff',
+                weight: 2,
+                opacity: 1,
+                fillOpacity: 0.8
+            }).addTo(origensLayer);
+            
+            origemMarker.bindPopup(`
+                <div class="text-center">
+                    <h6><strong>Origem: ${origem}</strong></h6>
+                    <p class="mb-0">Coordenadas: ${origemCoords[0].toFixed(4)}, ${origemCoords[1].toFixed(4)}</p>
+                </div>
+            `);
+            
+            // Adicionar marcador de destino
+            const destinoMarker = L.circleMarker(destinoCoords, {
+                radius: 8,
+                fillColor: '#28a745',
+                color: '#fff',
+                weight: 2,
+                opacity: 1,
+                fillOpacity: 0.8
+            }).addTo(destinosLayer);
+            
+            destinoMarker.bindPopup(`
+                <div class="text-center">
+                    <h6><strong>Destino: ${destino}</strong></h6>
+                    <p class="mb-0">Coordenadas: ${destinoCoords[0].toFixed(4)}, ${destinoCoords[1].toFixed(4)}</p>
+                </div>
+            `);
+            
+            // Adicionar rótulos se habilitado
+            if (document.getElementById('showLabels').checked) {
+                // Rótulo da origem
+                const origemLabel = L.tooltip({
+                    permanent: true,
+                    direction: 'center',
+                    className: 'map-label'
+                }).setContent(origem);
+                origemMarker.bindTooltip(origemLabel);
+                
+                // Rótulo do destino
+                const destinoLabel = L.tooltip({
+                    permanent: true,
+                    direction: 'center',
+                    className: 'map-label'
+                }).setContent(destino);
+                destinoMarker.bindTooltip(destinoLabel);
             }
             
             fluxosRenderizados++;
@@ -492,9 +506,6 @@ function renderMap(data) {
             fluxosSemCoordenadas++;
         }
     });
-    
-    // Renderizar marcadores das mesorregiões
-    renderMesorregioesMarkers(mesorregioesCoords);
     
     console.log(`Renderização concluída: ${fluxosRenderizados} fluxos renderizados, ${fluxosSemCoordenadas} sem coordenadas`);
     
@@ -511,52 +522,6 @@ function renderMap(data) {
             map.fitBounds(bounds, { padding: [20, 20] });
             console.log('Vista do mapa ajustada para mostrar todos os fluxos');
         }
-    }
-}
-
-// Renderizar marcadores das mesorregiões
-function renderMesorregioesMarkers(mesorregioesCoords) {
-    const mesorregioes = Array.from(mesorregioesCoords.entries());
-    
-    mesorregioes.forEach(([nome, coords]) => {
-        // Criar marcador de origem
-        const origemMarker = L.circleMarker(coords, {
-            radius: 8,
-            fillColor: '#007bff',
-            color: '#fff',
-            weight: 2,
-            opacity: 1,
-            fillOpacity: 0.8
-        });
-        
-        origemMarker.bindPopup(`
-            <div class="text-center">
-                <h6><strong>Mesorregião: ${nome}</strong></h6>
-                <p class="mb-0">Coordenadas: ${coords[0].toFixed(4)}, ${coords[1].toFixed(4)}</p>
-            </div>
-        `);
-        
-        // Adicionar rótulos se habilitado
-        if (document.getElementById('showLabels').checked) {
-            const label = L.tooltip({
-                permanent: true,
-                direction: 'center',
-                className: 'map-label'
-            }).setContent(nome);
-            origemMarker.bindTooltip(label);
-        }
-        
-        // Adicionar ao layer apropriado
-        if (document.getElementById('enableClustering').checked) {
-            markerClusterGroup.addLayer(origemMarker);
-        } else {
-            origensLayer.addLayer(origemMarker);
-        }
-    });
-    
-    // Adicionar grupo de clustering ao mapa se habilitado
-    if (document.getElementById('enableClustering').checked) {
-        map.addLayer(markerClusterGroup);
     }
 }
 
@@ -689,17 +654,9 @@ function toggleFluxos() {
 // Toggle origens
 function toggleOrigins() {
     if (document.getElementById('showOrigins').checked) {
-        if (document.getElementById('enableClustering').checked) {
-            map.addLayer(markerClusterGroup);
-        } else {
-            origensLayer.addTo(map);
-        }
+        origensLayer.addTo(map);
     } else {
-        if (document.getElementById('enableClustering').checked) {
-            map.removeLayer(markerClusterGroup);
-        } else {
-            map.removeLayer(origensLayer);
-        }
+        map.removeLayer(origensLayer);
     }
 }
 
@@ -709,25 +666,6 @@ function toggleDestinations() {
         destinosLayer.addTo(map);
     } else {
         map.removeLayer(destinosLayer);
-    }
-}
-
-// Toggle clustering
-function toggleClustering() {
-    if (document.getElementById('enableClustering').checked) {
-        // Remover marcadores individuais
-        origensLayer.clearLayers();
-        // Adicionar grupo de clustering
-        if (document.getElementById('showOrigins').checked) {
-            map.addLayer(markerClusterGroup);
-        }
-    } else {
-        // Remover grupo de clustering
-        map.removeLayer(markerClusterGroup);
-        // Adicionar marcadores individuais
-        if (document.getElementById('showOrigins').checked) {
-            origensLayer.addTo(map);
-        }
     }
 }
 
@@ -844,8 +782,6 @@ function createToastContainer() {
     font-weight: 600;
     color: #333;
     white-space: nowrap;
-    pointer-events: none;
-    z-index: 1000;
 }
 
 #map {
@@ -867,48 +803,6 @@ function createToastContainer() {
 
 .leaflet-popup-content small {
     color: #6c757d;
-}
-
-/* Estilos para clustering */
-.marker-cluster-small {
-    background-color: rgba(181, 226, 140, 0.6);
-}
-
-.marker-cluster-small div {
-    background-color: rgba(110, 204, 57, 0.6);
-}
-
-.marker-cluster-medium {
-    background-color: rgba(241, 211, 87, 0.6);
-}
-
-.marker-cluster-medium div {
-    background-color: rgba(240, 194, 57, 0.6);
-}
-
-.marker-cluster-large {
-    background-color: rgba(253, 156, 115, 0.6);
-}
-
-.marker-cluster-large div {
-    background-color: rgba(241, 128, 23, 0.6);
-}
-
-.marker-cluster {
-    background-clip: padding-box;
-    border-radius: 20px;
-}
-
-.marker-cluster div {
-    width: 30px;
-    height: 30px;
-    margin-left: 5px;
-    margin-top: 5px;
-    text-align: center;
-    border-radius: 15px;
-    font: 12px "Helvetica Neue", Arial, Helvetica, sans-serif;
-    color: white;
-    font-weight: bold;
 }
 </style>
 {% endblock %}
